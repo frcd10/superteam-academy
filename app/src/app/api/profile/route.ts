@@ -53,6 +53,23 @@ export async function PUT(request: NextRequest) {
     if (updates.username !== undefined) dbUpdates.username = updates.username;
     if (updates.displayName !== undefined)
       dbUpdates.display_name = updates.displayName;
+
+    // Check username uniqueness before updating
+    if (dbUpdates.username) {
+      const { data: existing } = await supabaseAdmin
+        .from("profiles")
+        .select("id")
+        .eq("username", dbUpdates.username as string)
+        .neq("id", user.id)
+        .maybeSingle();
+
+      if (existing) {
+        return NextResponse.json(
+          { error: "Username is already taken" },
+          { status: 409 }
+        );
+      }
+    }
     if (updates.bio !== undefined) dbUpdates.bio = updates.bio;
     if (updates.avatarUrl !== undefined)
       dbUpdates.avatar_url = updates.avatarUrl;

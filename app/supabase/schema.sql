@@ -123,10 +123,10 @@ CREATE POLICY "Users can update own wallet links"
   ON public.wallet_links FOR UPDATE
   USING (auth.uid() = user_id);
 
--- Course progress: own only
-CREATE POLICY "Users can view own progress"
+-- Course progress: any authenticated user can read (needed for leaderboard), own write
+CREATE POLICY "Authenticated users can view all progress"
   ON public.course_progress FOR SELECT
-  USING (auth.uid() = user_id);
+  USING (auth.uid() IS NOT NULL);
 
 CREATE POLICY "Users can insert own progress"
   ON public.course_progress FOR INSERT
