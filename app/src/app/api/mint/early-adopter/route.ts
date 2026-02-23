@@ -10,6 +10,7 @@ import {
 } from "@solana/web3.js";
 import {
   getAssociatedTokenAddressSync,
+  createAssociatedTokenAccountIdempotentInstruction,
   TOKEN_2022_PROGRAM_ID,
 } from "@solana/spl-token";
 import { createClient } from "@supabase/supabase-js";
@@ -108,6 +109,7 @@ function parseCollection(data: Buffer): PublicKey {
 export async function GET(request: NextRequest) {
   try {
     const userId = request.nextUrl.searchParams.get("userId");
+    const walletAddress = request.nextUrl.searchParams.get("wallet");
 
     const connection = new Connection(RPC_URL, "confirmed");
     const achievementTypePda = getAchievementTypePda(ACHIEVEMENT_ID);
@@ -121,6 +123,8 @@ export async function GET(request: NextRequest) {
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!,
       );
+
+      // Check DB first
       const { data } = await supabase
         .from("user_achievements")
         .select("id")
@@ -128,6 +132,28 @@ export async function GET(request: NextRequest) {
         .eq("achievement_id", ACHIEVEMENT_ID)
         .maybeSingle();
       userMinted = !!data;
+
+      // If DB says no but we have a wallet, check on-chain receipt as fallback
+      if (!userMinted && walletAddress) {
+        try {
+          const recipientKey = new PublicKey(walletAddress);
+          const receiptPda = getAchievementReceiptPda(ACHIEVEMENT_ID, recipientKey);
+          const receipt = await connection.getAccountInfo(receiptPda);
+          if (receipt) {
+            userMinted = true;
+            // Sync DB — the confirm step was likely missed
+            await supabase
+              .from("user_achievements")
+              .upsert({
+                user_id: userId,
+                achievement_id: ACHIEVEMENT_ID,
+                earned_at: new Date().toISOString(),
+              }, { onConflict: "user_id,achievement_id" });
+          }
+        } catch {
+          // On-chain check failed — rely on DB result
+        }
+      }
     }
 
     return NextResponse.json({ minted, maxSupply: MAX_SUPPLY, userMinted });
@@ -231,6 +257,11 @@ export async function POST(request: NextRequest) {
 
     const assetKeypair = Keypair.generate();
 
+    // Ensure recipient's Token-2022 ATA exists before minting XP
+    const createAtaIx = createAssociatedTokenAccountIdempotentInstruction(
+      recipientKey, recipientTokenAccount, recipientKey, XP_MINT, TOKEN_2022_PROGRAM_ID,
+    );
+
     // Learner wallet is the payer (pays rent + tx fee)
     const ix = buildAwardAchievementIx(
       configPda,
@@ -252,7 +283,7 @@ export async function POST(request: NextRequest) {
     const messageV0 = new TransactionMessage({
       payerKey: recipientKey,  // learner pays tx fee
       recentBlockhash: blockhash,
-      instructions: [ix],
+      instructions: [createAtaIx, ix],
     }).compileToV0Message();
 
     const tx = new VersionedTransaction(messageV0);

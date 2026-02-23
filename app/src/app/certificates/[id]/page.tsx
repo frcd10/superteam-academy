@@ -33,11 +33,25 @@ export default function CertificatePage({
   const [credential, setCredential] = useState<Credential | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [resolvedImageUrl, setResolvedImageUrl] = useState<string>("");
 
   useEffect(() => {
     heliusCredentialService
       .getCredentialByMint(id)
-      .then(setCredential)
+      .then((cred) => {
+        setCredential(cred);
+        // If credential has a metadata URI but no image from DAS,
+        // fetch our metadata endpoint to get the image
+        if (cred && !cred.imageUrl && cred.metadataUri) {
+          const match = cred.metadataUri.match(/\/api\/metadata\/credential\/([^/?]+)/);
+          if (match) {
+            fetch(`/api/metadata/credential/${match[1]}`)
+              .then((r) => r.json())
+              .then((meta) => { if (meta.image) setResolvedImageUrl(meta.image); })
+              .catch(() => {});
+          }
+        }
+      })
       .catch(() => setCredential(null))
       .finally(() => setLoading(false));
   }, [id]);
@@ -79,10 +93,10 @@ export default function CertificatePage({
         <div data-certificate-card className="rounded-2xl border bg-card overflow-hidden">
           {/* Image / placeholder */}
           <div className="aspect-[16/9] bg-gradient-to-br from-primary/10 via-primary/5 to-transparent flex items-center justify-center relative">
-            {credential?.imageUrl ? (
+            {(credential?.imageUrl || resolvedImageUrl) ? (
               <Image
-                src={credential.imageUrl}
-                alt={credential.name}
+                src={credential?.imageUrl || resolvedImageUrl}
+                alt={credential?.name ?? "Credential"}
                 fill
                 sizes="(max-width: 768px) 100vw, 700px"
                 className="object-cover"

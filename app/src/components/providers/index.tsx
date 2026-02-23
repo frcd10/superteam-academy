@@ -1,12 +1,18 @@
 "use client";
 
 import { Suspense, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import { ThemeProvider } from "./theme-provider";
-import { SolanaProvider } from "./solana-provider";
 import { AuthProvider } from "./auth-provider";
 import { AnalyticsProvider } from "./analytics-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
+import { ServiceWorkerRegistration } from "./sw-registration";
+
+const SolanaProvider = dynamic(
+  () => import("./solana-provider").then((m) => ({ default: m.SolanaProvider })),
+  { ssr: false }
+);
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -20,6 +26,7 @@ export function Providers({ children }: { children: ReactNode }) {
               </AnalyticsProvider>
             </Suspense>
             <Toaster position="top-right" />
+            <ServiceWorkerRegistration />
           </TooltipProvider>
         </AuthProvider>
       </SolanaProvider>

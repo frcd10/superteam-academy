@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   Connection,
+  ComputeBudgetProgram,
   Keypair,
   PublicKey,
   TransactionMessage,
@@ -21,6 +22,7 @@ import {
   getEnrollmentPda,
 } from "@/lib/solana/program";
 import { updateStreak } from "@/lib/streak";
+import { sanityClient } from "@/lib/sanity/client";
 
 const RPC_URL =
   process.env.NEXT_PUBLIC_HELIUS_RPC ??
@@ -36,13 +38,70 @@ const CREDENTIAL_COLLECTION = new PublicKey(
 );
 
 // Anchor discriminators (sha256("global:<fn_name>")[..8])
+const COMPLETE_LESSON_DISC = Buffer.from([77, 217, 53, 132, 204, 150, 169, 58]);
 const FINALIZE_COURSE_DISC = Buffer.from([68, 189, 122, 239, 39, 121, 16, 218]);
 const ISSUE_CREDENTIAL_DISC = Buffer.from([255, 193, 171, 224, 68, 171, 194, 87]);
+
+// CU budget for lesson completion batches
+const CU_PER_LESSON = 20_000;
+const CU_OVERHEAD = 10_000;
+const MAX_CU = 1_400_000;
 
 function getBackendSigner(): Keypair {
   const keyJson = process.env.BACKEND_SIGNER_KEY;
   if (!keyJson) throw new Error("BACKEND_SIGNER_KEY not configured");
   return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(keyJson)));
+}
+
+function parseLessonFlags(accountData: Buffer): { flags: bigint[]; lessonCount: number } {
+  // Borsh layout: 8 disc + 32 course + 8 enrolled_at + Option<i64> completed_at + [u64;4] lesson_flags
+  // Option<i64>: None = 1 byte (0x00), Some = 9 bytes (0x01 + i64)
+  const optionTag = accountData[48];
+  const flagsOffset = 48 + 1 + (optionTag === 1 ? 8 : 0);
+  const flags: bigint[] = [];
+  for (let i = 0; i < 4; i++) {
+    let val = BigInt(0);
+    for (let b = 0; b < 8; b++) {
+      val |= BigInt(accountData[flagsOffset + i * 8 + b]) << BigInt(b * 8);
+    }
+    flags.push(val);
+  }
+  // Count completed lessons from bitmap
+  let lessonCount = 0;
+  for (const w of flags) {
+    let v = w;
+    while (v > BigInt(0)) { v &= v - BigInt(1); lessonCount++; }
+  }
+  return { flags, lessonCount };
+}
+
+function buildCompleteLessonIx(
+  lessonIndex: number,
+  config: PublicKey,
+  course: PublicKey,
+  enrollment: PublicKey,
+  learner: PublicKey,
+  learnerTokenAccount: PublicKey,
+  xpMint: PublicKey,
+  backendSigner: PublicKey,
+): TransactionInstruction {
+  const data = Buffer.alloc(9);
+  COMPLETE_LESSON_DISC.copy(data, 0);
+  data.writeUInt8(lessonIndex, 8);
+  return new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [
+      { pubkey: config, isSigner: false, isWritable: false },
+      { pubkey: course, isSigner: false, isWritable: false },
+      { pubkey: enrollment, isSigner: false, isWritable: true },
+      { pubkey: learner, isSigner: false, isWritable: false },
+      { pubkey: learnerTokenAccount, isSigner: false, isWritable: true },
+      { pubkey: xpMint, isSigner: false, isWritable: true },
+      { pubkey: backendSigner, isSigner: true, isWritable: false },
+      { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
+    ],
+    data,
+  });
 }
 
 function buildFinalizeCourseIx(
@@ -192,19 +251,38 @@ export async function POST(request: NextRequest) {
     const backendKeypair = getBackendSigner();
     const learnerKey = new PublicKey(learnerWallet);
 
+    // Fetch course title from Sanity for credential metadata
+    const sanityCourse = await sanityClient.fetch<{ title: string } | null>(
+      `*[_type == "course" && courseId == $courseId][0] { title }`,
+      { courseId },
+    );
+    const courseTitle = sanityCourse?.title ?? courseId;
+
     const configPda = getConfigPda();
     const coursePda = getCoursePda(courseId);
     const enrollmentPda = getEnrollmentPda(courseId, learnerKey);
 
-    // Read course account to get creator
-    const courseAccount = await connection.getAccountInfo(coursePda);
+    // Read course + enrollment accounts
+    const [courseAccount, enrollmentAccount] = await Promise.all([
+      connection.getAccountInfo(coursePda),
+      connection.getAccountInfo(enrollmentPda),
+    ]);
     if (!courseAccount) {
       return NextResponse.json({ error: "Course not found on-chain" }, { status: 404 });
+    }
+    if (!enrollmentAccount) {
+      return NextResponse.json({ error: "Enrollment not found on-chain" }, { status: 404 });
     }
     const courseData = courseAccount.data;
     const courseIdLen = courseData.readUInt32LE(8);
     const creatorOffset = 8 + 4 + courseIdLen;
     const creator = new PublicKey(courseData.subarray(creatorOffset, creatorOffset + 32));
+
+    // Parse on-chain lesson_count + xp_per_lesson from Course account
+    // Layout: 8 disc + (4+len) course_id + 32 creator + 32 content_tx_id + 2 version + 1 lesson_count + 1 difficulty + 4 xp_per_lesson
+    const lessonCountOffset = 8 + 4 + courseIdLen + 32 + 32 + 2;
+    const onChainLessonCount = courseData.readUInt8(lessonCountOffset);
+    const xpPerLesson = courseData.readUInt32LE(lessonCountOffset + 2); // skip difficulty (u8)
 
     const learnerTokenAccount = getAssociatedTokenAddressSync(
       XP_MINT, learnerKey, true, TOKEN_2022_PROGRAM_ID,
@@ -212,6 +290,46 @@ export async function POST(request: NextRequest) {
     const creatorTokenAccount = getAssociatedTokenAddressSync(
       XP_MINT, creator, true, TOKEN_2022_PROGRAM_ID,
     );
+
+    // Check which lessons still need on-chain completion
+    const { flags } = parseLessonFlags(enrollmentAccount.data);
+    const pendingIndices: number[] = [];
+    for (let i = 0; i < onChainLessonCount; i++) {
+      const wordIndex = Math.floor(i / 64);
+      const bitIndex = i % 64;
+      if ((flags[wordIndex] & (BigInt(1) << BigInt(bitIndex))) === BigInt(0)) {
+        pendingIndices.push(i);
+      }
+    }
+
+    // Build lesson completion txs if any lessons are pending
+    const lessonCompletionTxs: string[] = [];
+    if (pendingIndices.length > 0) {
+      const createLearnerAtaIx = createAssociatedTokenAccountIdempotentInstruction(
+        learnerKey, learnerTokenAccount, learnerKey, XP_MINT, TOKEN_2022_PROGRAM_ID,
+      );
+      const lessonIxs = pendingIndices.map((idx) =>
+        buildCompleteLessonIx(
+          idx, configPda, coursePda, enrollmentPda,
+          learnerKey, learnerTokenAccount, XP_MINT, backendKeypair.publicKey,
+        ),
+      );
+      const maxPerTx = Math.floor((MAX_CU - CU_OVERHEAD) / CU_PER_LESSON);
+      for (let i = 0; i < lessonIxs.length; i += maxPerTx) {
+        const batch = lessonIxs.slice(i, i + maxPerTx);
+        const totalCU = CU_OVERHEAD + batch.length * CU_PER_LESSON;
+        const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({ units: totalCU });
+        const { blockhash: bh } = await connection.getLatestBlockhash("confirmed");
+        const msg = new TransactionMessage({
+          payerKey: learnerKey,
+          recentBlockhash: bh,
+          instructions: [computeBudgetIx, createLearnerAtaIx, ...batch],
+        }).compileToV0Message();
+        const tx = new VersionedTransaction(msg);
+        tx.sign([backendKeypair]);
+        lessonCompletionTxs.push(Buffer.from(tx.serialize()).toString("base64"));
+      }
+    }
 
     // Build finalize tx — learner pays tx fee
     const createLearnerAta = createAssociatedTokenAccountIdempotentInstruction(
@@ -232,20 +350,20 @@ export async function POST(request: NextRequest) {
       await connection.getLatestBlockhash("confirmed");
 
     const finalizeMsg = new TransactionMessage({
-      payerKey: learnerKey, // learner pays tx fee
+      payerKey: learnerKey,
       recentBlockhash: blockhash,
       instructions: [createLearnerAta, createCreatorAta, finalizeIx],
     }).compileToV0Message();
 
     const finalizeTx = new VersionedTransaction(finalizeMsg);
-    finalizeTx.sign([backendKeypair]); // backend partial-signs
+    finalizeTx.sign([backendKeypair]);
 
     // Build credential tx (best-effort, separate tx)
     let credentialTxBase64: string | null = null;
     let credentialAssetAddress: string | null = null;
     try {
       const credentialKeypair = Keypair.generate();
-      const totalXp = BigInt(progress.xp_earned ?? 0);
+      const totalXp = BigInt(onChainLessonCount * xpPerLesson);
 
       const issueIx = buildIssueCredentialIx(
         configPda, coursePda, enrollmentPda,
@@ -253,8 +371,8 @@ export async function POST(request: NextRequest) {
         CREDENTIAL_COLLECTION,
         learnerKey,                // payer = learner
         backendKeypair.publicKey,  // backend_signer
-        `Superteam Academy — ${courseId}`,
-        `https://arweave.net/credential/${courseId}`,
+        `${courseTitle} — Superteam Academy`,
+        `${process.env.NEXT_PUBLIC_PRODUCTION_URL}/api/metadata/credential/${courseId}`,
         1,
         totalXp,
       );
@@ -279,6 +397,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      lessonCompletionTxs,
+      pendingLessons: pendingIndices.length,
       finalizeTx: Buffer.from(finalizeTx.serialize()).toString("base64"),
       credentialTx: credentialTxBase64,
       credentialAssetAddress,

@@ -4,11 +4,12 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { PlatformLayout } from "@/components/layout";
 import { ProtectedRoute } from "@/components/auth";
+import { LinkWalletPrompt } from "@/components/auth";
 import { XPDisplay, StreakBadge } from "@/components/shared";
 import {
   StreakCalendar,
   LevelRing,
-  EarlyAdopterMint,
+  AchievementMintList,
 } from "@/components/gamification";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -45,6 +46,7 @@ export default function DashboardPage() {
   return (
     <ProtectedRoute>
       <PlatformLayout>
+        <LinkWalletPrompt />
         <div className="container mx-auto px-4 py-8 lg:py-12">
           {/* Welcome */}
           <div className="mb-8">
@@ -176,8 +178,8 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              {/* Early Adopter NFT Mint */}
-              <EarlyAdopterMint />
+              {/* Achievement NFTs */}
+              <AchievementMintList />
 
               {/* Recent activity */}
               <div>

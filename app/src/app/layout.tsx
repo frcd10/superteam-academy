@@ -49,6 +49,12 @@ export const metadata: Metadata = {
       "Master Solana development with interactive courses and on-chain credentials.",
     creator: "@SuperteamBR",
   },
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Academy",
+  },
 };
 
 export default async function RootLayout({
@@ -61,6 +67,16 @@ export default async function RootLayout({
 
   return (
     <html lang={locale} suppressHydrationWarning>
+      <head>
+        <meta name="theme-color" content="#7c3aed" />
+        <link rel="apple-touch-icon" href="/superteam-logo.jpg" />
+        <link rel="preconnect" href="https://www.googletagmanager.com" />
+        <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
+        <link rel="preconnect" href="https://us.i.posthog.com" />
+        <link rel="dns-prefetch" href="https://us.i.posthog.com" />
+        <link rel="preconnect" href="https://cdn.sanity.io" />
+        <link rel="dns-prefetch" href="https://cdn.sanity.io" />
+      </head>
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased bg-background text-foreground`}
         suppressHydrationWarning

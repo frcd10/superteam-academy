@@ -144,12 +144,13 @@ export async function POST(request: NextRequest) {
     let pendingIndices = lessonIndices;
     if (enrollmentAccount) {
       // Parse lesson_flags bitmap from enrollment account
-      // Layout: 8 disc + 32 course + 8 enrolled_at + 1+8 completed_at(Option<i64>) + 32 lesson_flags
+      // Borsh layout: 8 disc + 32 course + 8 enrolled_at + Option<i64> completed_at + [u64;4] lesson_flags
+      // Option<i64> is variable: None = 1 byte (0x00), Some = 9 bytes (0x01 + i64)
       const data = enrollmentAccount.data;
-      const flagsOffset = 8 + 32 + 8 + 9; // 57
+      const optionTag = data[48]; // 0 = None, 1 = Some
+      const flagsOffset = 48 + 1 + (optionTag === 1 ? 8 : 0);
       const flags: bigint[] = [];
       for (let i = 0; i < 4; i++) {
-        // Read u64 LE
         let val = BigInt(0);
         for (let b = 0; b < 8; b++) {
           val |= BigInt(data[flagsOffset + i * 8 + b]) << BigInt(b * 8);

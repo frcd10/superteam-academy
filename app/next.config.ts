@@ -5,6 +5,14 @@ import createNextIntlPlugin from "next-intl/plugin";
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 const nextConfig: NextConfig = {
+  experimental: {
+    optimizePackageImports: [
+      "lucide-react",
+      "@solana/wallet-adapter-react",
+      "@solana/wallet-adapter-react-ui",
+      "@solana/web3.js",
+    ],
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "cdn.sanity.io" },

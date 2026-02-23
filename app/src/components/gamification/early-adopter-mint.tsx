@@ -6,8 +6,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { VersionedTransaction } from "@solana/web3.js";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Sparkles, CheckCircle2 } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import Image from "next/image";
 
@@ -25,11 +24,13 @@ export function EarlyAdopterMint() {
   const [alreadyMinted, setAlreadyMinted] = useState(false);
   const [soldOut, setSoldOut] = useState(false);
 
-  const walletAddress = profile?.walletAddress ?? publicKey?.toBase58();
+  // Always use the linked wallet for data queries — never the connected wallet
+  const linkedWallet = profile?.walletAddress ?? null;
 
   const fetchStatus = useCallback(async () => {
     try {
-      const params = user ? `?userId=${user.id}` : "";
+      let params = user ? `?userId=${user.id}` : "";
+      if (linkedWallet) params += `${params ? "&" : "?"}wallet=${linkedWallet}`;
       const res = await fetch(`/api/mint/early-adopter${params}`);
       const data = await res.json();
       setMinted(data.minted ?? 0);
@@ -41,15 +42,23 @@ export function EarlyAdopterMint() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, linkedWallet]);
 
   useEffect(() => {
     fetchStatus();
   }, [fetchStatus]);
 
   const handleMint = async () => {
-    if (!user || !walletAddress || !signTransaction) {
-      toast.error("Connect your wallet to mint");
+    if (!user || !linkedWallet) {
+      toast.error("Link a wallet in Settings to mint");
+      return;
+    }
+    if (!signTransaction || !publicKey) {
+      toast.error("Connect your linked wallet to sign the transaction");
+      return;
+    }
+    if (publicKey.toBase58() !== linkedWallet) {
+      toast.error("Please connect the wallet linked to your account to mint");
       return;
     }
 
@@ -61,7 +70,7 @@ export function EarlyAdopterMint() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user.id,
-          walletAddress,
+          walletAddress: linkedWallet,
         }),
       });
 
@@ -69,6 +78,22 @@ export function EarlyAdopterMint() {
 
       if (data.alreadyMinted) {
         setAlreadyMinted(true);
+        // Sync DB in case the confirm step was missed
+        try {
+          await fetch("/api/mint/early-adopter", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userId: user.id,
+              walletAddress: linkedWallet,
+              action: "confirm",
+              signature: "synced",
+              assetAddress: "synced",
+            }),
+          });
+        } catch {
+          // Best-effort DB sync
+        }
         toast.info("You already minted your Early Adopter NFT!");
         return;
       }
@@ -103,7 +128,7 @@ export function EarlyAdopterMint() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user.id,
-          walletAddress,
+          walletAddress: linkedWallet,
           action: "confirm",
           signature,
           assetAddress: data.assetAddress,
@@ -138,6 +163,11 @@ export function EarlyAdopterMint() {
 
   const isSoldOut = soldOut || minted >= maxSupply;
 
+  // Don't show on dashboard if already minted, sold out, or still loading
+  if (loading || alreadyMinted || isSoldOut) {
+    return null;
+  }
+
   return (
     <div className="flex items-center gap-4 rounded-xl border bg-card p-4 hover:shadow-sm transition-all hover:border-amber-500/30">
       {/* Thumbnail */}
@@ -163,25 +193,14 @@ export function EarlyAdopterMint() {
       </div>
 
       {/* Action */}
-      {alreadyMinted ? (
-        <Badge variant="secondary" className="text-xs gap-1 shrink-0 text-emerald-600 dark:text-emerald-400">
-          <CheckCircle2 className="h-3 w-3" />
-          Minted
-        </Badge>
-      ) : isSoldOut ? (
-        <Badge variant="secondary" className="text-xs shrink-0">
-          Sold out
-        </Badge>
-      ) : (
-        <Button
-          size="sm"
-          onClick={handleMint}
-          disabled={minting || !walletAddress || loading}
-          className="shrink-0 gap-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs h-8 px-3"
-        >
-          {minting ? "Minting..." : "Mint"}
-        </Button>
-      )}
+      <Button
+        size="sm"
+        onClick={handleMint}
+        disabled={minting || !linkedWallet || loading}
+        className="shrink-0 gap-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs h-8 px-3"
+      >
+        {minting ? "Minting..." : "Mint"}
+      </Button>
     </div>
   );
 }

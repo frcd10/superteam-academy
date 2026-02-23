@@ -75,7 +75,11 @@ const COURSE_FIELDS = `
 `;
 
 function buildFilters(params?: SearchParams): string {
-  const filters: string[] = ['_type == "course"', "isActive == true"];
+  const filters: string[] = [
+    '_type == "course"',
+    "isActive == true",
+    '(status == "approved" || !defined(status))',
+  ];
 
   if (params?.difficulty) {
     filters.push(`difficulty == ${Number(params.difficulty)}`);
@@ -109,22 +113,22 @@ export const sanityCourseService: CourseService = {
   },
 
   async getFeaturedCourses() {
-    const query = `*[_type == "course" && isActive == true] | order(totalCompletions desc) [0...6] { ${COURSE_FIELDS} }`;
+    const query = `*[_type == "course" && isActive == true && (status == "approved" || !defined(status))] | order(totalCompletions desc) [0...6] { ${COURSE_FIELDS} }`;
     return sanityClient.fetch<Course[]>(query);
   },
 
   async getCoursesByTrack(trackId) {
-    const query = `*[_type == "course" && isActive == true && trackId == $trackId] | order(trackLevel asc) { ${COURSE_FIELDS} }`;
+    const query = `*[_type == "course" && isActive == true && (status == "approved" || !defined(status)) && trackId == $trackId] | order(trackLevel asc) { ${COURSE_FIELDS} }`;
     return sanityClient.fetch<Course[]>(query, { trackId });
   },
 
   async searchCourses(searchQuery) {
-    const query = `*[_type == "course" && isActive == true && (title match "*${searchQuery}*" || description match "*${searchQuery}*")] | order(totalCompletions desc) [0...20] { ${COURSE_FIELDS} }`;
+    const query = `*[_type == "course" && isActive == true && (status == "approved" || !defined(status)) && (title match "*${searchQuery}*" || description match "*${searchQuery}*")] | order(totalCompletions desc) [0...20] { ${COURSE_FIELDS} }`;
     return sanityClient.fetch<Course[]>(query);
   },
 
   async getTotalCourseCount() {
-    const query = `count(*[_type == "course" && isActive == true])`;
+    const query = `count(*[_type == "course" && isActive == true && (status == "approved" || !defined(status))])`;
     return sanityClient.fetch<number>(query);
   },
 };

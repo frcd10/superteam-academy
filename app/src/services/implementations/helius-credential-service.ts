@@ -27,12 +27,24 @@ function assetToCredential(asset: DASAsset): Credential {
   const attrs = Object.fromEntries(
     (asset.content?.metadata?.attributes ?? []).map((a) => [a.trait_type, a.value]),
   );
+
+  // Try DAS image first, then fall back to fetching from metadata URI
+  let imageUrl = asset.content?.links?.image ?? "";
+  if (!imageUrl && asset.content?.json_uri) {
+    // Extract courseId from our metadata endpoint URL pattern
+    const match = asset.content.json_uri.match(/\/api\/metadata\/credential\/([^/?]+)/);
+    if (match) {
+      // Use internal API path — will be resolved client-side relative to current origin
+      imageUrl = `/api/metadata/credential/${match[1]}?imageOnly=true`;
+    }
+  }
+
   return {
     mintAddress: asset.id,
     name: asset.content?.metadata?.name ?? "Credential",
     metadataUri: asset.content?.json_uri ?? "",
-    imageUrl: asset.content?.links?.image ?? "",
-    trackId: parseInt(attrs["track"] ?? "0"),
+    imageUrl,
+    trackId: parseInt(attrs["track_id"] ?? attrs["track"] ?? "0"),
     trackLevel: parseInt(attrs["level"] ?? "0"),
     coursesCompleted: parseInt(attrs["courses_completed"] ?? "0"),
     totalXp: parseInt(attrs["total_xp"] ?? "0"),

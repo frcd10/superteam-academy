@@ -126,6 +126,46 @@ export const course = defineType({
       type: "string",
     }),
     defineField({
+      name: "status",
+      title: "Status",
+      type: "string",
+      options: {
+        list: [
+          { title: "Draft", value: "draft" },
+          { title: "Pending Review", value: "pending_review" },
+          { title: "Approved", value: "approved" },
+          { title: "Rejected", value: "rejected" },
+        ],
+      },
+      initialValue: "draft",
+    }),
+    defineField({
+      name: "submittedBy",
+      title: "Submitted By (wallet)",
+      type: "string",
+    }),
+    defineField({
+      name: "submittedAt",
+      title: "Submitted At",
+      type: "datetime",
+    }),
+    defineField({
+      name: "reviewedBy",
+      title: "Reviewed By (wallet)",
+      type: "string",
+    }),
+    defineField({
+      name: "reviewedAt",
+      title: "Reviewed At",
+      type: "datetime",
+    }),
+    defineField({
+      name: "rejectionReason",
+      title: "Rejection Reason",
+      type: "text",
+      rows: 3,
+    }),
+    defineField({
       name: "instructor",
       title: "Instructor",
       type: "object",

@@ -76,6 +76,30 @@ CREATE TABLE IF NOT EXISTS public.activities (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Comments (lesson discussions + forum posts)
+CREATE TABLE IF NOT EXISTS public.comments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  course_id TEXT,                 -- NULL for standalone forum posts
+  lesson_index INTEGER,           -- NULL for standalone forum posts
+  title TEXT,                     -- Title for forum posts (NULL for lesson comments)
+  parent_id UUID REFERENCES public.comments(id) ON DELETE CASCADE,
+  content TEXT NOT NULL CHECK (char_length(content) BETWEEN 1 AND 2000),
+  is_helpful BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Community help tracking (for "Helper" achievement)
+CREATE TABLE IF NOT EXISTS public.community_help (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  helper_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  helped_user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  comment_id UUID NOT NULL REFERENCES public.comments(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(helper_id, comment_id)
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_profiles_wallet ON public.profiles(wallet_address);
 CREATE INDEX IF NOT EXISTS idx_profiles_username ON public.profiles(username);
@@ -84,6 +108,12 @@ CREATE INDEX IF NOT EXISTS idx_course_progress_user ON public.course_progress(us
 CREATE INDEX IF NOT EXISTS idx_course_progress_course ON public.course_progress(course_id);
 CREATE INDEX IF NOT EXISTS idx_activities_user ON public.activities(user_id);
 CREATE INDEX IF NOT EXISTS idx_activities_created ON public.activities(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_comments_lesson ON public.comments(course_id, lesson_index);
+CREATE INDEX IF NOT EXISTS idx_comments_user ON public.comments(user_id);
+CREATE INDEX IF NOT EXISTS idx_comments_parent ON public.comments(parent_id);
+CREATE INDEX IF NOT EXISTS idx_comments_created ON public.comments(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_community_help_helper ON public.community_help(helper_id);
+CREATE INDEX IF NOT EXISTS idx_community_help_helped ON public.community_help(helped_user_id);
 
 -- RLS policies
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -92,6 +122,8 @@ ALTER TABLE public.course_progress ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.streaks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_achievements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.activities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.community_help ENABLE ROW LEVEL SECURITY;
 
 -- Profiles: public read, own write
 CREATE POLICY "Public profiles are viewable by everyone"
@@ -123,10 +155,10 @@ CREATE POLICY "Users can update own wallet links"
   ON public.wallet_links FOR UPDATE
   USING (auth.uid() = user_id);
 
--- Course progress: any authenticated user can read (needed for leaderboard), own write
-CREATE POLICY "Authenticated users can view all progress"
+-- Course progress: own only (leaderboard uses server API with admin client)
+CREATE POLICY "Users can view own progress"
   ON public.course_progress FOR SELECT
-  USING (auth.uid() IS NOT NULL);
+  USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can insert own progress"
   ON public.course_progress FOR INSERT
@@ -163,6 +195,38 @@ CREATE POLICY "Users can insert own activities"
   ON public.activities FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
+-- Comments: authenticated read, own write/delete
+CREATE POLICY "Authenticated users can view comments"
+  ON public.comments FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Users can create comments"
+  ON public.comments FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own comments"
+  ON public.comments FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own comments"
+  ON public.comments FOR DELETE
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+-- Community help: authenticated read, participants write
+CREATE POLICY "Authenticated users can view help records"
+  ON public.community_help FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Users can mark comments as helpful"
+  ON public.community_help FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = helped_user_id);
+
 -- Auto-update updated_at
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
@@ -178,4 +242,8 @@ CREATE TRIGGER profiles_updated_at
 
 CREATE TRIGGER streaks_updated_at
   BEFORE UPDATE ON public.streaks
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER comments_updated_at
+  BEFORE UPDATE ON public.comments
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();

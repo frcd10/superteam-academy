@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useAppStore } from "@/stores/app-store";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { toast } from "sonner";
 import {
   User,
@@ -30,11 +32,14 @@ import {
   Check,
   Camera,
   Loader2,
+  Link,
 } from "lucide-react";
 
 export default function SettingsPage() {
   const t = useTranslations("settings");
-  const { user, profile, walletLinked, refreshProfile } = useAuth();
+  const { user, profile, walletLinked, linkWallet, refreshProfile } = useAuth();
+  const { connected } = useWallet();
+  const { setVisible } = useWalletModal();
   const { theme, setTheme } = useAppStore();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -49,6 +54,8 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [linkingWallet, setLinkingWallet] = useState(false);
+  const pendingLink = useRef(false);
 
   useEffect(() => {
     if (profile) {
@@ -63,6 +70,36 @@ export default function SettingsPage() {
       setAvatarUrl(profile.avatarUrl ?? null);
     }
   }, [profile]);
+
+  // Auto-trigger wallet link after wallet connects via modal
+  useEffect(() => {
+    if (connected && pendingLink.current && !walletLinked) {
+      pendingLink.current = false;
+      setLinkingWallet(true);
+      linkWallet()
+        .then(() => toast.success("Wallet linked successfully"))
+        .catch((err) => toast.error(err instanceof Error ? err.message : "Failed to link wallet"))
+        .finally(() => setLinkingWallet(false));
+    }
+  }, [connected, walletLinked, linkWallet]);
+
+  const handleLinkWallet = async () => {
+    if (!connected) {
+      pendingLink.current = true;
+      setVisible(true);
+      return;
+    }
+
+    setLinkingWallet(true);
+    try {
+      await linkWallet();
+      toast.success("Wallet linked successfully");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to link wallet");
+    } finally {
+      setLinkingWallet(false);
+    }
+  };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -364,9 +401,24 @@ export default function SettingsPage() {
                 </span>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                Sign in with a wallet to link it to your account.
-              </p>
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Link a Solana wallet to receive XP tokens, credentials, and achievements on-chain.
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={handleLinkWallet}
+                  disabled={linkingWallet}
+                  className="gap-2 h-10"
+                >
+                  {linkingWallet ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Link className="h-4 w-4" />
+                  )}
+                  {linkingWallet ? "Linking..." : t("linkWallet")}
+                </Button>
+              </div>
             )}
           </section>
 

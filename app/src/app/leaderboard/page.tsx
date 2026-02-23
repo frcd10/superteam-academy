@@ -48,7 +48,9 @@ export default function LeaderboardPage() {
   const t = useTranslations("leaderboard");
   const [timeframe, setTimeframe] = useState<LeaderboardTimeframe>("all-time");
   const { entries, total, loading } = useLeaderboard(timeframe);
-  const { user } = useAuth();
+  const { profile } = useAuth();
+  // Only highlight "You" for the user's linked wallet
+  const myWallet = profile?.walletAddress ?? "";
 
   return (
     <PlatformLayout>
@@ -112,7 +114,7 @@ export default function LeaderboardPage() {
           ) : (
             <div className="divide-y">
               {entries.map((entry) => {
-                const isYou = user?.id === entry.walletAddress;
+                const isYou = !!myWallet && entry.walletAddress === myWallet;
                 return (
                   <div
                     key={entry.rank}

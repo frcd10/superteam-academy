@@ -10,6 +10,7 @@ import {
 } from "@solana/web3.js";
 import {
   getAssociatedTokenAddressSync,
+  createAssociatedTokenAccountIdempotentInstruction,
   TOKEN_2022_PROGRAM_ID,
 } from "@solana/spl-token";
 import { createClient } from "@supabase/supabase-js";
@@ -146,6 +147,11 @@ export async function POST(request: NextRequest) {
 
     const assetKeypair = Keypair.generate();
 
+    // Ensure recipient's Token-2022 ATA exists before minting XP
+    const createAtaIx = createAssociatedTokenAccountIdempotentInstruction(
+      backendKeypair.publicKey, recipientTokenAccount, recipientKey, XP_MINT, TOKEN_2022_PROGRAM_ID,
+    );
+
     const ix = buildAwardAchievementIx(
       configPda,
       achievementTypePda,
@@ -166,7 +172,7 @@ export async function POST(request: NextRequest) {
     const messageV0 = new TransactionMessage({
       payerKey: backendKeypair.publicKey,
       recentBlockhash: blockhash,
-      instructions: [ix],
+      instructions: [createAtaIx, ix],
     }).compileToV0Message();
 
     const tx = new VersionedTransaction(messageV0);

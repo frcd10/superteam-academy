@@ -19,13 +19,18 @@ import { toast } from "sonner";
 import { trackEvent } from "@/components/providers/analytics-provider";
 
 /**
- * Read XP balance from Token-2022 ATA (soulbound)
+ * Read XP balance from Token-2022 ATA (soulbound).
+ * Uses the provided wallet address for reads — NOT the connected wallet.
  */
-export function useOnChainXP() {
+export function useOnChainXP(walletAddress?: string | null) {
   const { connection } = useConnection();
-  const { publicKey } = useWallet();
   const [balance, setBalance] = useState<number>(0);
   const [loading, setLoading] = useState(true);
+
+  const owner = useMemo(
+    () => (walletAddress ? new PublicKey(walletAddress) : null),
+    [walletAddress]
+  );
 
   const xpMint = useMemo(
     () =>
@@ -37,18 +42,17 @@ export function useOnChainXP() {
   );
 
   const ata = useMemo(() => {
-    if (!publicKey) return null;
-    // ATA derivation for Token-2022
+    if (!owner) return null;
     const [addr] = PublicKey.findProgramAddressSync(
       [
-        publicKey.toBuffer(),
+        owner.toBuffer(),
         TOKEN_2022_PROGRAM_ID.toBuffer(),
         xpMint.toBuffer(),
       ],
       new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL")
     );
     return addr;
-  }, [publicKey, xpMint]);
+  }, [owner, xpMint]);
 
   const refresh = useCallback(async () => {
     if (!ata) {
@@ -74,22 +78,27 @@ export function useOnChainXP() {
 }
 
 /**
- * Read on-chain enrollment status for a course
+ * Read on-chain enrollment status for a course.
+ * Uses the provided wallet address for reads — NOT the connected wallet.
  */
-export function useOnChainEnrollment(courseId: string) {
+export function useOnChainEnrollment(courseId: string, walletAddress?: string | null) {
   const { connection } = useConnection();
-  const { publicKey } = useWallet();
   const [enrolled, setEnrolled] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const owner = useMemo(
+    () => (walletAddress ? new PublicKey(walletAddress) : null),
+    [walletAddress]
+  );
+
   useEffect(() => {
-    if (!publicKey || !courseId) {
+    if (!owner || !courseId) {
       setEnrolled(false);
       setLoading(false);
       return;
     }
 
-    const enrollmentPda = getEnrollmentPda(courseId, publicKey);
+    const enrollmentPda = getEnrollmentPda(courseId, owner);
     connection
       .getAccountInfo(enrollmentPda)
       .then((info) => {
@@ -97,7 +106,7 @@ export function useOnChainEnrollment(courseId: string) {
       })
       .catch(() => setEnrolled(false))
       .finally(() => setLoading(false));
-  }, [connection, publicKey, courseId]);
+  }, [connection, owner, courseId]);
 
   return { enrolled, loading };
 }
@@ -236,10 +245,10 @@ export function useEnrollOnChain() {
 }
 
 /**
- * Fetch Metaplex Core credential NFTs via Helius DAS API
+ * Fetch Metaplex Core credential NFTs via Helius DAS API.
+ * Uses the provided wallet address for reads — NOT the connected wallet.
  */
-export function useOnChainCredentials() {
-  const { publicKey } = useWallet();
+export function useOnChainCredentials(walletAddress?: string | null) {
   const [credentials, setCredentials] = useState<
     Array<{
       id: string;
@@ -256,7 +265,7 @@ export function useOnChainCredentials() {
     `https://devnet.helius-rpc.com/?api-key=${process.env.NEXT_PUBLIC_HELIUS_API_KEY ?? ""}`;
 
   useEffect(() => {
-    if (!publicKey) {
+    if (!walletAddress) {
       setCredentials([]);
       setLoading(false);
       return;
@@ -279,7 +288,7 @@ export function useOnChainCredentials() {
             id: "credentials",
             method: "getAssetsByOwner",
             params: {
-              ownerAddress: publicKey.toBase58(),
+              ownerAddress: walletAddress,
               page: 1,
               limit: 50,
             },
@@ -322,7 +331,7 @@ export function useOnChainCredentials() {
         setLoading(false);
       }
     })();
-  }, [publicKey, heliusUrl]);
+  }, [walletAddress, heliusUrl]);
 
   return { credentials, loading };
 }

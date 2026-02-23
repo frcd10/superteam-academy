@@ -5,6 +5,9 @@ import Image from "next/image";
 import { useTranslations, useLocale } from "next-intl";
 import { Link, usePathname } from "@/i18n/navigation";
 import { UserMenu } from "@/components/auth";
+import { useAdmin } from "@/hooks/use-admin";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useHasCreatedCourses } from "@/hooks/use-has-created-courses";
 import {
   BookOpen,
   LayoutDashboard,
@@ -15,6 +18,10 @@ import {
   Sun,
   Moon,
   Globe,
+  PlusCircle,
+  ShieldCheck,
+  FolderOpen,
+  MessageSquare,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -31,6 +38,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { href: "/courses", labelKey: "courses" as const, icon: BookOpen },
   { href: "/dashboard", labelKey: "dashboard" as const, icon: LayoutDashboard },
+  { href: "/community", labelKey: "community" as const, icon: MessageSquare },
   { href: "/leaderboard", labelKey: "leaderboard" as const, icon: Trophy },
   { href: "/profile", labelKey: "profile" as const, icon: User },
 ];
@@ -47,6 +55,11 @@ export function Navbar() {
   const currentLocale = useLocale();
   const { theme, setTheme } = useAppStore();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { isAdmin } = useAdmin();
+  const { isAuthenticated } = useAuth();
+  const { hasCreatedCourses } = useHasCreatedCourses();
+
+  const showMyCourses = isAuthenticated && (hasCreatedCourses || pathname.startsWith("/my-courses") || pathname.startsWith("/edit-course"));
 
   const switchLocale = (loc: string) => {
     document.cookie = `NEXT_LOCALE=${loc};path=/;max-age=31536000`;
@@ -92,6 +105,54 @@ export function Navbar() {
               </Link>
             );
           })}
+
+          {/* My Courses (only if user has created courses) */}
+          {showMyCourses && (
+            <Link
+              href="/my-courses"
+              className={cn(
+                "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                pathname.startsWith("/my-courses") || pathname.startsWith("/edit-course")
+                  ? "bg-secondary text-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+              )}
+            >
+              <FolderOpen className="h-4 w-4" />
+              My Courses
+            </Link>
+          )}
+
+          {/* Create Course */}
+          {isAuthenticated && (
+            <Link
+              href="/create-course"
+              className={cn(
+                "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                pathname.startsWith("/create-course")
+                  ? "bg-secondary text-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+              )}
+            >
+              <PlusCircle className="h-4 w-4" />
+              Create
+            </Link>
+          )}
+
+          {/* Admin link */}
+          {isAdmin && (
+            <Link
+              href="/admin"
+              className={cn(
+                "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                pathname.startsWith("/admin")
+                  ? "bg-secondary text-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+              )}
+            >
+              <ShieldCheck className="h-4 w-4" />
+              Admin
+            </Link>
+          )}
         </div>
 
         {/* Right side */}
@@ -99,7 +160,7 @@ export function Navbar() {
           {/* Language */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-9 w-9">
+              <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Change language">
                 <Globe className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -122,6 +183,7 @@ export function Navbar() {
             size="icon"
             className="h-9 w-9"
             onClick={toggleTheme}
+            aria-label="Toggle theme"
           >
             {theme === "dark" ? (
               <Sun className="h-4 w-4" />
@@ -138,7 +200,7 @@ export function Navbar() {
           {/* Mobile menu */}
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild className="md:hidden">
-              <Button variant="ghost" size="icon" className="h-9 w-9">
+              <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Open menu">
                 {mobileOpen ? (
                   <X className="h-5 w-5" />
                 ) : (
@@ -172,6 +234,57 @@ export function Navbar() {
                       </Link>
                     );
                   })}
+
+                  {/* Mobile: My Courses (only if user has created courses) */}
+                  {showMyCourses && (
+                    <Link
+                      href="/my-courses"
+                      onClick={() => setMobileOpen(false)}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                        pathname.startsWith("/my-courses") || pathname.startsWith("/edit-course")
+                          ? "bg-secondary text-foreground"
+                          : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                      )}
+                    >
+                      <FolderOpen className="h-4 w-4" />
+                      My Courses
+                    </Link>
+                  )}
+
+                  {/* Mobile: Create Course */}
+                  {isAuthenticated && (
+                    <Link
+                      href="/create-course"
+                      onClick={() => setMobileOpen(false)}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                        pathname.startsWith("/create-course")
+                          ? "bg-secondary text-foreground"
+                          : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                      )}
+                    >
+                      <PlusCircle className="h-4 w-4" />
+                      Create Course
+                    </Link>
+                  )}
+
+                  {/* Mobile: Admin */}
+                  {isAdmin && (
+                    <Link
+                      href="/admin"
+                      onClick={() => setMobileOpen(false)}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                        pathname.startsWith("/admin")
+                          ? "bg-secondary text-foreground"
+                          : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                      )}
+                    >
+                      <ShieldCheck className="h-4 w-4" />
+                      Admin
+                    </Link>
+                  )}
                 </div>
                 <div className="mt-auto border-t p-4 space-y-3">
                   <UserMenu />

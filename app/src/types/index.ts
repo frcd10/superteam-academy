@@ -133,6 +133,7 @@ export interface Achievement {
   category: "progress" | "streak" | "skill" | "community" | "special";
   iconUrl: string;
   xpReward: number;
+  requirement: string;
   isEarned: boolean;
   earnedAt?: string;
   progress?: number;
@@ -167,6 +168,26 @@ export interface LeaderboardEntry {
   streak?: number;
 }
 
+// ─── Comment ────────────────────────────────────────────
+export interface Comment {
+  id: string;
+  userId: string;
+  courseId: string;
+  lessonIndex: number;
+  parentId?: string;
+  content: string;
+  isHelpful: boolean;
+  createdAt: string;
+  updatedAt: string;
+  author: {
+    username: string;
+    displayName: string;
+    avatarUrl: string | null;
+  };
+  helpfulCount: number;
+  replies: Comment[];
+}
+
 // ─── Activity ───────────────────────────────────────────
 export interface ActivityItem {
   id: string;
@@ -176,7 +197,9 @@ export interface ActivityItem {
     | "course_completed"
     | "achievement_earned"
     | "xp_earned"
-    | "credential_issued";
+    | "credential_issued"
+    | "comment_posted"
+    | "helped_learner";
   title: string;
   description: string;
   xp?: number;

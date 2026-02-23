@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
@@ -33,7 +34,11 @@ import {
   ExternalLink,
   CheckCircle2,
   Zap,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
+
+const ACHIEVEMENTS_PER_PAGE = 9;
 
 export default function ProfilePage() {
   const t = useTranslations("profile");
@@ -46,6 +51,20 @@ export default function ProfilePage() {
 
   const completed = progressList.filter((p) => p.isCompleted);
   const earnedAchievements = achievements.filter((a) => a.isEarned);
+
+  // Sort: earned first, then unearned
+  const sortedAchievements = [...achievements].sort((a, b) => {
+    if (a.isEarned && !b.isEarned) return -1;
+    if (!a.isEarned && b.isEarned) return 1;
+    return 0;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(sortedAchievements.length / ACHIEVEMENTS_PER_PAGE));
+  const [achPage, setAchPage] = useState(0);
+  const pagedAchievements = sortedAchievements.slice(
+    achPage * ACHIEVEMENTS_PER_PAGE,
+    (achPage + 1) * ACHIEVEMENTS_PER_PAGE
+  );
 
   return (
     <ProtectedRoute>
@@ -168,10 +187,39 @@ export default function ProfilePage() {
                   No achievements yet.
                 </p>
               ) : (
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {achievements.map((ach) => (
-                    <AchievementCard key={ach.id} achievement={ach} />
-                  ))}
+                <div className="space-y-4">
+                  <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                    {pagedAchievements.map((ach) => (
+                      <AchievementCard key={ach.id} achievement={ach} />
+                    ))}
+                  </div>
+
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-3 pt-2">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setAchPage((p) => Math.max(0, p - 1))}
+                        disabled={achPage === 0}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span className="text-sm text-muted-foreground">
+                        {achPage + 1} / {totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setAchPage((p) => Math.min(totalPages - 1, p + 1))}
+                        disabled={achPage === totalPages - 1}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </TabsContent>

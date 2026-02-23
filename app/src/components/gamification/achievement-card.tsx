@@ -4,7 +4,13 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle2, Lock } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { CheckCircle2, Info, Lock } from "lucide-react";
 import type { Achievement } from "@/types";
 
 interface AchievementCardProps {
@@ -52,7 +58,7 @@ export function AchievementCard({
             "flex items-center justify-center rounded-lg shrink-0 overflow-hidden",
             achievement.isEarned
               ? "bg-primary/10"
-              : "bg-muted grayscale",
+              : "bg-muted grayscale opacity-50",
             size === "sm" && "h-10 w-10",
             size === "md" && "h-12 w-12"
           )}
@@ -93,9 +99,23 @@ export function AchievementCard({
             >
               {achievement.name}
             </p>
-            {achievement.isEarned && (
-              <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-            )}
+            <div className="flex items-center gap-1 shrink-0">
+              {achievement.requirement && (
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[220px] text-xs">
+                      {achievement.requirement}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+              {achievement.isEarned && (
+                <CheckCircle2 className="h-4 w-4 text-primary" />
+              )}
+            </div>
           </div>
 
           <p

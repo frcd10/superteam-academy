@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",
@@ -47,6 +49,7 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4",
     "@types/bs58": "^5.0.0",
     "@types/node": "^20",
@@ -54,6 +57,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "playwright-lighthouse": "^4.0.0",
     "sanity": "^5.11.0",
     "shadcn": "^3.8.5",
     "tailwindcss": "^4",

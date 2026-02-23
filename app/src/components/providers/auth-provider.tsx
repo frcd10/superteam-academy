@@ -24,6 +24,7 @@ interface AuthState {
   signInWithGoogle: () => Promise<void>;
   signInWithGithub: () => Promise<void>;
   signInWithWallet: () => Promise<void>;
+  linkWallet: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -49,9 +50,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAuthenticated = !!user;
   const walletLinked = !!profile?.walletAddress;
 
+  interface ProfileRow {
+    id: string;
+    wallet_address: string | null;
+    email: string | null;
+    username: string | null;
+    display_name: string | null;
+    bio: string | null;
+    avatar_url: string | null;
+    social_links: Record<string, string> | null;
+    created_at: string;
+    is_public: boolean | null;
+    preferred_language: string | null;
+    theme: string | null;
+  }
+
   const mapRowToProfile = useCallback(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (data: any): UserProfile => ({
+    (data: ProfileRow): UserProfile => ({
       id: data.id,
       walletAddress: data.wallet_address,
       email: data.email,
@@ -63,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       joinedAt: data.created_at,
       isPublic: data.is_public ?? true,
       preferredLanguage: data.preferred_language ?? "en",
-      theme: data.theme ?? "light",
+      theme: (data.theme as UserProfile["theme"]) ?? "light",
     }),
     []
   );
@@ -296,6 +311,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.href = "/dashboard";
   };
 
+  const linkWallet = async () => {
+    if (!publicKey || !signMessage) {
+      throw new Error("Wallet not connected or does not support message signing");
+    }
+    if (!user) {
+      throw new Error("Must be signed in to link a wallet");
+    }
+
+    const walletAddress = publicKey.toBase58();
+    const timestamp = Date.now();
+    const msg = `Link wallet ${walletAddress} to Superteam Academy account at ${timestamp}`;
+    const messageBytes = new TextEncoder().encode(msg);
+    const signature = await signMessage(messageBytes);
+
+    const bs58 = await import("bs58");
+    const signatureB58 = bs58.default.encode(signature);
+
+    const res = await fetch("/api/auth/link-wallet", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        walletAddress,
+        signature: signatureB58,
+        message: msg,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error ?? "Failed to link wallet");
+    }
+
+    await refreshProfile();
+  };
+
   const refreshProfile = async () => {
     if (!user) return;
     await fetchProfile(user.id);
@@ -313,6 +363,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signInWithGoogle,
         signInWithGithub,
         signInWithWallet,
+        linkWallet,
         signOut,
         refreshProfile,
       }}

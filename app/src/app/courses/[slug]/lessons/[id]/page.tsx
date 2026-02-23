@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCourse, useProgress } from "@/hooks/use-services";
+import { useCourse, useProgress, useComments } from "@/hooks/use-services";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useConnection } from "@solana/wallet-adapter-react";
@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { trackEvent } from "@/components/providers/analytics-provider";
+import { CommentSection } from "@/components/comments/comment-section";
 
 export default function LessonPage({
   params,
@@ -49,6 +50,13 @@ export default function LessonPage({
   const { connection } = useConnection();
   const [claimingXP, setClaimingXP] = useState(false);
   const [xpClaimed, setXpClaimed] = useState(false);
+  const {
+    comments,
+    loading: commentsLoading,
+    postComment,
+    deleteComment,
+    markHelpful,
+  } = useComments(course?.courseId ?? "", lessonIndex);
 
   // Find the lesson
   const lessonInfo = useMemo(() => {
@@ -413,6 +421,17 @@ export default function LessonPage({
                       )}
                     </div>
                   )}
+
+                  {/* Discussion section */}
+                  <CommentSection
+                    courseId={course.courseId}
+                    lessonIndex={lessonIndex}
+                    comments={comments}
+                    loading={commentsLoading}
+                    onPost={postComment}
+                    onDelete={deleteComment}
+                    onMarkHelpful={markHelpful}
+                  />
                 </div>
               </div>
             )}

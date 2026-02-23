@@ -58,7 +58,7 @@ export default function CourseDetailPage({
     if (!course || !user || !walletKey || !signTransaction || !progress?.isCompleted) return;
     setFinalizing(true);
     try {
-      // Step 1: Get partially-signed txs from backend
+      // Step 1: Get partially-signed txs from backend (includes lesson completion if needed)
       const res = await fetch("/api/courses/finalize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -75,6 +75,22 @@ export default function CourseDetailPage({
         return;
       }
       if (!res.ok || !data.finalizeTx) throw new Error(data.error || "Failed to finalize");
+
+      // Step 1.5: Complete pending lessons on-chain first (if any)
+      if (data.lessonCompletionTxs?.length) {
+        toast.info(`Completing ${data.pendingLessons} lesson(s) on-chain first…`);
+        for (const txBase64 of data.lessonCompletionTxs) {
+          const tx = VersionedTransaction.deserialize(
+            Buffer.from(txBase64, "base64"),
+          );
+          const signed = await signTransaction(tx);
+          const sig = await connection.sendRawTransaction(signed.serialize(), {
+            skipPreflight: false,
+            maxRetries: 3,
+          });
+          await connection.confirmTransaction(sig, "confirmed");
+        }
+      }
 
       // Step 2: Sign and send finalize tx
       const finalizeTx = VersionedTransaction.deserialize(

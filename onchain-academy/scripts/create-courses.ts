@@ -16,15 +16,6 @@ const contentTxId = Buffer.alloc(32);
 
 const courses = [
   {
-    courseId: "intro-solana",
-    lessonCount: 8,
-    difficulty: 1,
-    xpPerLesson: 25,
-    trackId: 1,
-    trackLevel: 1,
-    creatorRewardXp: 200,
-  },
-  {
     courseId: "anchor-fundamentals",
     lessonCount: 10,
     difficulty: 2,
@@ -34,15 +25,6 @@ const courses = [
     creatorRewardXp: 300,
   },
   {
-    courseId: "token-extensions",
-    lessonCount: 6,
-    difficulty: 2,
-    xpPerLesson: 30,
-    trackId: 2,
-    trackLevel: 1,
-    creatorRewardXp: 180,
-  },
-  {
     courseId: "metaplex-core",
     lessonCount: 5,
     difficulty: 2,
@@ -50,15 +32,6 @@ const courses = [
     trackId: 4,
     trackLevel: 2,
     creatorRewardXp: 175,
-  },
-  {
-    courseId: "defi-on-solana",
-    lessonCount: 2,
-    difficulty: 3,
-    xpPerLesson: 40,
-    trackId: 3,
-    trackLevel: 1,
-    creatorRewardXp: 80,
   },
   {
     courseId: "solana-dev-setup",

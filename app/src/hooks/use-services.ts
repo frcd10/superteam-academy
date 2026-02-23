@@ -12,6 +12,7 @@ import { supabaseStreakService } from "@/services";
 import { supabaseActivityService } from "@/services";
 import { supabaseLeaderboardService } from "@/services";
 import { supabaseAchievementService } from "@/services";
+import { supabaseCommentService } from "@/services";
 import {
   useOnChainXP,
   useOnChainEnrollment,
@@ -28,6 +29,7 @@ import type {
   LeaderboardTimeframe,
   Achievement,
   Credential,
+  Comment,
   SearchParams,
 } from "@/types";
 
@@ -84,10 +86,11 @@ export function useFeaturedCourses() {
 // ─── Enrollment ─────────────────────────────────────────
 
 export function useEnrollment(courseId: string, totalLessons?: number) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { publicKey: walletKey } = useWallet();
+  // Read on-chain enrollment using the linked wallet, not the connected one
   const { enrolled: onChainEnrolled, loading: onChainLoading } =
-    useOnChainEnrollment(courseId);
+    useOnChainEnrollment(courseId, profile?.walletAddress);
   const { enrollOnChain, enrolling } = useEnrollOnChain();
   const [supabaseEnrolled, setSupabaseEnrolled] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -105,7 +108,6 @@ export function useEnrollment(courseId: string, totalLessons?: number) {
       .finally(() => setLoading(false));
   }, [user, courseId]);
 
-  // Enrolled if either on-chain or Supabase says so
   const enrolled = onChainEnrolled || supabaseEnrolled;
   const [localEnrolling, setLocalEnrolling] = useState(false);
 
@@ -136,20 +138,18 @@ export function useEnrollment(courseId: string, totalLessons?: number) {
             onChainSuccess = true;
           } else {
             console.error("On-chain enrollment failed:", msg);
-            toast.error("On-chain enrollment failed. Enrolling off-chain only.");
+            toast.error("On-chain enrollment failed. Please try again.");
+            return;
           }
         }
       }
 
-      // 2. Always record in Supabase for progress tracking
+      // 2. Record in Supabase only after on-chain succeeds (or no wallet)
       await supabaseEnrollmentService.enroll(user.id, courseId, totalLessons);
       setSupabaseEnrolled(true);
 
-      // Only show generic success if enrollOnChain didn't already toast
       if (!walletKey) {
         toast.success("Enrolled! Connect a wallet for on-chain enrollment.");
-      } else if (!onChainSuccess) {
-        // On-chain failed but Supabase succeeded — error toast already shown above
       }
       // If onChainSuccess, enrollOnChain already showed a success toast
     } catch (err: unknown) {
@@ -231,13 +231,14 @@ export function useAllProgress() {
 // ─── XP ─────────────────────────────────────────────────
 
 export function useXP() {
-  const { user } = useAuth();
-  const { publicKey: walletKey } = useWallet();
+  const { user, profile } = useAuth();
+  // Read on-chain XP using the linked wallet, not the connected one
+  const linkedWallet = profile?.walletAddress ?? null;
   const {
     balance: onChainXP,
     loading: onChainLoading,
     refresh: refreshOnChain,
-  } = useOnChainXP();
+  } = useOnChainXP(linkedWallet);
   const [supabaseBalance, setSupabaseBalance] = useState<XPBalance>({
     amount: 0,
     level: 0,
@@ -247,14 +248,14 @@ export function useXP() {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    if (walletKey) {
+    if (linkedWallet) {
       await refreshOnChain();
     }
     if (user) {
       const xp = await supabaseXPService.getBalanceByUserId(user.id);
       setSupabaseBalance(xp);
     }
-  }, [user, walletKey, refreshOnChain]);
+  }, [user, linkedWallet, refreshOnChain]);
 
   useEffect(() => {
     if (!user) {
@@ -264,8 +265,8 @@ export function useXP() {
     refresh().finally(() => setLoading(false));
   }, [user, refresh]);
 
-  // Prefer on-chain XP when wallet is connected and has a balance
-  const useOnChain = walletKey && !onChainLoading && onChainXP > 0;
+  // Prefer on-chain XP from the linked wallet when available
+  const useOnChain = !!linkedWallet && !onChainLoading && onChainXP > 0;
   const amount = useOnChain ? onChainXP : supabaseBalance.amount;
   const level = Math.floor(Math.sqrt(amount / 100));
   const currentLevelXp = level * level * 100;
@@ -411,11 +412,12 @@ export function useAchievements() {
 
 export function useCredentials() {
   const { user, profile } = useAuth();
-  const { publicKey: walletKey } = useWallet();
+  // Read on-chain credentials using the linked wallet, not the connected one
+  const linkedWallet = profile?.walletAddress ?? null;
   const {
     credentials: onChainCredentials,
     loading: onChainLoading,
-  } = useOnChainCredentials();
+  } = useOnChainCredentials(linkedWallet);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -423,11 +425,9 @@ export function useCredentials() {
       setLoading(false);
       return;
     }
-    // On-chain credentials load from Helius DAS automatically
     setLoading(false);
   }, [user]);
 
-  // Map on-chain DAS credentials to our Credential type
   const credentials: Credential[] = onChainCredentials.map((c) => ({
     mintAddress: c.id,
     name: c.name,
@@ -437,9 +437,104 @@ export function useCredentials() {
     trackLevel: parseInt(c.attributes["level"] ?? "0"),
     coursesCompleted: parseInt(c.attributes["courses_completed"] ?? "0"),
     totalXp: parseInt(c.attributes["total_xp"] ?? "0"),
-    owner: walletKey?.toBase58() ?? profile?.walletAddress ?? "",
+    owner: linkedWallet ?? "",
     collection: process.env.NEXT_PUBLIC_CREDENTIAL_COLLECTION ?? "",
   }));
 
   return { credentials, loading: loading || onChainLoading };
+}
+
+// ─── Comments ───────────────────────────────────────────
+
+export function useComments(courseId: string, lessonIndex: number) {
+  const { user } = useAuth();
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchComments = useCallback(() => {
+    if (!courseId) return;
+    setLoading(true);
+    supabaseCommentService
+      .getComments(courseId, lessonIndex)
+      .then(setComments)
+      .catch(() => setComments([]))
+      .finally(() => setLoading(false));
+  }, [courseId, lessonIndex]);
+
+  useEffect(() => {
+    fetchComments();
+  }, [fetchComments]);
+
+  const postComment = useCallback(
+    async (content: string, parentId?: string) => {
+      if (!user) return;
+      const res = await fetch("/api/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          courseId,
+          lessonIndex,
+          content,
+          parentId,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Failed to post comment");
+      }
+
+      const data = await res.json();
+
+      if (data.achievementAwarded === "first-comment") {
+        toast.success("Achievement unlocked: First Comment!");
+      }
+
+      fetchComments();
+    },
+    [user, courseId, lessonIndex, fetchComments],
+  );
+
+  const deleteComment = useCallback(
+    async (commentId: string) => {
+      const res = await fetch(`/api/comments?id=${commentId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete comment");
+      fetchComments();
+    },
+    [fetchComments],
+  );
+
+  const markHelpful = useCallback(
+    async (commentId: string) => {
+      const res = await fetch("/api/comments/helpful", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commentId }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Failed to mark as helpful");
+      }
+
+      const data = await res.json();
+
+      if (data.achievementAwarded === "helper") {
+        toast.success("The comment author earned the Helper achievement!");
+      }
+
+      if (data.alreadyMarked) {
+        toast.info("Already marked as helpful");
+        return;
+      }
+
+      toast.success("Marked as helpful!");
+      fetchComments();
+    },
+    [fetchComments],
+  );
+
+  return { comments, loading, postComment, deleteComment, markHelpful };
 }

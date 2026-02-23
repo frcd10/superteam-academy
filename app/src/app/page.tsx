@@ -1,6 +1,4 @@
-"use client";
-
-import { useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { PlatformLayout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -42,8 +40,8 @@ const stats = [
   { key: "xpAwarded" as const, value: "500K+" },
 ];
 
-export default function Home() {
-  const t = useTranslations("landing");
+export default async function Home() {
+  const t = await getTranslations("landing");
 
   return (
     <PlatformLayout hideFooter={false}>
@@ -157,7 +155,7 @@ export default function Home() {
         </div>
 
         {/* Partner logos */}
-        <div className="mt-16 flex flex-wrap items-center justify-center gap-8 opacity-50">
+        <div className="mt-16 flex flex-wrap items-center justify-center gap-8">
           {["Solana Foundation", "Superteam", "Helius", "Metaplex"].map((name) => (
             <span key={name} className="text-sm font-medium text-muted-foreground">
               {name}
