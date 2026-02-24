@@ -28,8 +28,9 @@ export interface ChallengeDraft {
 export interface LessonDraft {
   title: string;
   description: string;
-  type: "content" | "challenge" | "quiz";
+  type: "content" | "challenge" | "quiz" | "video";
   content: string;
+  videoUrl: string;
   xp: number;
   duration: string;
   quiz: QuizDraft;
@@ -55,6 +56,7 @@ function newLesson(xp: number): LessonDraft {
     description: "",
     type: "content",
     content: "",
+    videoUrl: "",
     xp: Math.min(xp, MAX_XP_PER_LESSON),
     duration: "",
     quiz: { ...emptyQuiz, questions: [{ question: "", options: ["", ""], correctIndex: 0, explanation: "" }] },

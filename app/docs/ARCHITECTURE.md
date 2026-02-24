@@ -177,6 +177,20 @@ This enables:
 - Easy testing (inject mock services)
 - Swappable backends (Sanity → Strapi, Supabase → PostgreSQL, etc.)
 
+## Offline / PWA
+
+The app supports real offline course reading via Service Worker + IndexedDB:
+
+1. **Service Worker** (`public/sw.js`) — network-first for navigation, stale-while-revalidate for static assets. Enrolled users can cache entire courses (all lesson pages) into a dedicated `academy-courses` cache via message-passing.
+2. **IndexedDB** (`src/lib/offline-store.ts`) — `academy-offline` database with two object stores:
+   - `courses` — full course metadata + slug-based key, for listing saved courses
+   - `completions` — queued lesson completions made while offline, synced via `/api/progress/offline-sync` when connectivity returns
+3. **React hooks** (`src/hooks/use-offline.ts`) — `useOnlineStatus`, `useServiceWorker`, `useOfflineCourse`, `useOfflineCourses`, `useOfflineCompletion`
+4. **UI** — "Save for Offline" button on course detail (enrolled only), amber offline banner on lessons, `/offline` page listing saved courses + pending sync count
+5. **Sync** — `useOfflineCompletion` auto-POSTs pending completions to `/api/progress/offline-sync` when `navigator.onLine` flips to `true`
+
+Zero database impact — all offline data is client-side only.
+
 ## Performance Considerations
 
 - **Turbopack** for fast HMR in development
@@ -184,6 +198,7 @@ This enables:
 - **Resizable panels** for lesson split layout
 - **oklch colors** for perceptually uniform dark mode
 - **Image optimization** via Sanity CDN or Next.js Image
+- **Service Worker** caching for offline + faster repeat visits
 
 ## Key Design Decisions
 
@@ -197,3 +212,4 @@ This enables:
 | Service interfaces | Swappable backends, testable, mock-first dev |
 | Token-2022 for XP | Soulbound (NonTransferable), wallet-visible |
 | Metaplex Core for creds | Soulbound NFTs, upgradeable, DAS queryable |
+| IndexedDB for offline | Client-side only, zero DB impact, auto-sync |

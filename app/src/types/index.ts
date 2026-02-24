@@ -39,8 +39,9 @@ export interface Lesson {
   title: string;
   description: string;
   order: number;
-  type: "content" | "challenge" | "quiz";
+  type: "content" | "challenge" | "quiz" | "video";
   content?: string;
+  videoUrl?: string;
   challenge?: Challenge;
   quiz?: Quiz;
   xp: number;

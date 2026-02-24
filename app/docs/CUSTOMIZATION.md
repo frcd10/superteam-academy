@@ -166,6 +166,31 @@ export const leaderboardService: LeaderboardService = new MyCustomLeaderboardSer
 
 Interface contracts are in `src/services/*-service.ts`.
 
+## Offline / PWA Configuration
+
+The app includes real offline course reading via Service Worker + IndexedDB.
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `public/sw.js` | Service Worker — caches static assets + course lesson pages |
+| `src/lib/offline-store.ts` | IndexedDB wrapper (course metadata + pending completions) |
+| `src/hooks/use-offline.ts` | React hooks (`useOnlineStatus`, `useOfflineCourse`, `useOfflineCompletion`) |
+| `src/app/offline/page.tsx` | Offline fallback page with saved courses list |
+| `src/app/api/progress/offline-sync/route.ts` | Sync endpoint for queued completions |
+
+### Disabling Offline Support
+
+Remove `ServiceWorkerRegistration` from `src/components/providers/index.tsx` and delete the files above.
+
+### Customizing Cache Strategy
+
+Edit `public/sw.js`:
+- `CACHE_NAME` — bump version to clear stale static cache
+- `COURSE_CACHE` — dedicated cache for saved course pages
+- `OFFLINE_URLS` — list of pages to pre-cache on SW install
+
 ## Deploying to Production
 
 ### Vercel (recommended)

@@ -67,6 +67,7 @@ export async function GET(
             description,
             type,
             htmlContent,
+            videoUrl,
             xp,
             duration,
             "quiz": quiz {
@@ -178,6 +179,7 @@ export async function PUT(
       description?: string;
       type?: string;
       content?: string;
+      videoUrl?: string;
       xp?: number;
       duration?: string;
       quiz?: {
@@ -224,6 +226,7 @@ export async function PUT(
               description: les.description ?? "",
               type: les.type ?? "content",
               htmlContent: les.content ?? "",
+              videoUrl: les.videoUrl ?? "",
               xp: lessonXp,
               duration: les.duration ?? "",
             };

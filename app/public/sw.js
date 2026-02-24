@@ -1,4 +1,5 @@
-const CACHE_NAME = "superteam-academy-v2";
+const CACHE_NAME = "superteam-academy-v3";
+const COURSE_CACHE = "academy-courses";
 
 const PRECACHE_URLS = ["/", "/offline"];
 
@@ -14,7 +15,7 @@ self.addEventListener("activate", (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((key) => key !== CACHE_NAME)
+          .filter((key) => key !== CACHE_NAME && key !== COURSE_CACHE)
           .map((key) => caches.delete(key))
       )
     )
@@ -42,16 +43,28 @@ self.addEventListener("fetch", (event) => {
       fetch(request)
         .then((response) => {
           const clone = response.clone();
+          // Auto-update course cache if page was saved offline
+          caches.open(COURSE_CACHE).then((cache) => {
+            cache.match(request).then((existing) => {
+              if (existing) cache.put(request, clone);
+            });
+          });
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
           return response;
         })
-        .catch(() => caches.match(request).then((r) => r || caches.match("/offline")))
+        .catch(() =>
+          // Try course cache first, then general cache, then offline page
+          caches.open(COURSE_CACHE).then((cc) =>
+            cc.match(request).then((r) =>
+              r || caches.match(request).then((r2) => r2 || caches.match("/offline"))
+            )
+          )
+        )
     );
     return;
   }
 
-  // Next.js hashed static assets — filename contains content hash, so
-  // stale-while-revalidate is safe: serve cache instantly, update in background
+  // Next.js hashed static assets — stale-while-revalidate
   if (
     url.pathname.startsWith("/_next/static/") ||
     url.pathname.startsWith("/icons/") ||
@@ -80,4 +93,29 @@ self.addEventListener("fetch", (event) => {
       })
       .catch(() => caches.match(request))
   );
+});
+
+// Message handler: cache/uncache course pages on demand
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "CACHE_COURSE_URLS") {
+    const { urls } = event.data;
+    caches.open(COURSE_CACHE).then((cache) => {
+      Promise.allSettled(
+        urls.map((url) =>
+          fetch(url).then((res) => {
+            if (res.ok) cache.put(url, res);
+          })
+        )
+      ).then(() => {
+        event.source?.postMessage({ type: "COURSE_CACHED", success: true });
+      });
+    });
+  }
+
+  if (event.data?.type === "UNCACHE_COURSE_URLS") {
+    const { urls } = event.data;
+    caches.open(COURSE_CACHE).then((cache) => {
+      Promise.allSettled(urls.map((url) => cache.delete(url)));
+    });
+  }
 });

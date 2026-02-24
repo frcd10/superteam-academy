@@ -6,6 +6,7 @@ import { Link } from "@/i18n/navigation";
 import { PlatformLayout } from "@/components/layout";
 import { CodeEditor } from "@/components/lesson";
 import { LessonQuiz } from "@/components/lesson/quiz";
+import { YouTubeEmbed } from "@/components/lesson/youtube-embed";
 import { ProtectedRoute } from "@/components/auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,10 +31,12 @@ import {
   Coins,
   ExternalLink,
   Loader2,
+  WifiOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { trackEvent } from "@/components/providers/analytics-provider";
 import { CommentSection } from "@/components/comments/comment-section";
+import { useOnlineStatus } from "@/hooks/use-offline";
 
 export default function LessonPage({
   params,
@@ -57,6 +60,7 @@ export default function LessonPage({
     deleteComment,
     markHelpful,
   } = useComments(course?.courseId ?? "", lessonIndex);
+  const isOnline = useOnlineStatus();
 
   // Find the lesson
   const lessonInfo = useMemo(() => {
@@ -78,6 +82,7 @@ export default function LessonPage({
   const hasPrev = lessonIndex > 0;
   const hasNext = lessonInfo ? lessonIndex < lessonInfo.totalLessons - 1 : false;
   const isQuizLesson = lessonInfo?.lesson.type === "quiz" && !!lessonInfo.lesson.quiz;
+  const isVideoLesson = lessonInfo?.lesson.type === "video" && !!lessonInfo.lesson.videoUrl;
 
   const handleComplete = useCallback(async () => {
     if (!lessonInfo || isComplete) return;
@@ -306,6 +311,14 @@ export default function LessonPage({
             </div>
           </div>
 
+          {/* Offline banner */}
+          {!isOnline && (
+            <div className="flex items-center justify-center gap-2 bg-amber-500/10 border-b border-amber-500/20 px-4 py-1.5 text-xs text-amber-500">
+              <WifiOff className="h-3.5 w-3.5" />
+              <span>Offline mode — reading cached content. Progress will sync when you reconnect.</span>
+            </div>
+          )}
+
           {/* Content */}
           <div className="flex-1 overflow-hidden">
             {lesson.type === "challenge" && lesson.challenge ? (
@@ -347,13 +360,23 @@ export default function LessonPage({
               /* Content / Quiz lesson */
               <div className="h-full overflow-y-auto">
                 <div className="container mx-auto max-w-3xl px-4 py-8">
+                  {/* Video embed for video lessons */}
+                  {isVideoLesson && (
+                    <div className="mb-8">
+                      <YouTubeEmbed
+                        url={lesson.videoUrl!}
+                        title={lesson.title}
+                      />
+                    </div>
+                  )}
+
                   {/* Lesson content */}
                   <article className="prose prose-neutral dark:prose-invert max-w-none">
                     {lesson.content ? (
                       <div
                         dangerouslySetInnerHTML={{ __html: lesson.content }}
                       />
-                    ) : !isQuizLesson ? (
+                    ) : !isQuizLesson && !isVideoLesson ? (
                       <div className="text-center py-12 text-muted-foreground">
                         <BookOpen className="h-12 w-12 mx-auto mb-4 opacity-30" />
                         <p>Lesson content is loading from CMS...</p>

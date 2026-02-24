@@ -33,6 +33,7 @@ import {
   Code2,
   ImagePlus,
   Loader2,
+  Video,
 } from "lucide-react";
 import { useCourseCreationFee } from "@/hooks/use-course-creation-fee";
 
@@ -1019,6 +1020,7 @@ export default function CreateCoursePage() {
                             <option value="content">Content</option>
                             <option value="quiz">Quiz</option>
                             <option value="challenge">Challenge</option>
+                            <option value="video">Video</option>
                           </select>
                         </div>
                       </div>
@@ -1062,6 +1064,53 @@ export default function CreateCoursePage() {
                             rows={6}
                             className="w-full rounded-lg border bg-background px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-ring"
                           />
+                        </div>
+                      )}
+
+                      {/* Video lesson */}
+                      {les.type === "video" && (
+                        <div className="space-y-3">
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-medium flex items-center gap-1.5">
+                              <Video className="h-3.5 w-3.5 text-red-500" />
+                              YouTube Video URL *
+                            </label>
+                            <Input
+                              value={les.videoUrl}
+                              onChange={(e) =>
+                                store.updateLesson(
+                                  mi,
+                                  li,
+                                  "videoUrl",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="https://www.youtube.com/watch?v=..."
+                              className="h-9"
+                            />
+                            <p className="text-[11px] text-muted-foreground">
+                              Supports youtube.com/watch, youtu.be, and youtube.com/embed URLs
+                            </p>
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-medium">
+                              Lesson Content (optional)
+                            </label>
+                            <textarea
+                              value={les.content}
+                              onChange={(e) =>
+                                store.updateLesson(
+                                  mi,
+                                  li,
+                                  "content",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="Additional notes or context for this video lesson..."
+                              rows={4}
+                              className="w-full rounded-lg border bg-background px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-ring"
+                            />
+                          </div>
                         </div>
                       )}
 

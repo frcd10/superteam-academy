@@ -237,9 +237,17 @@ export const lesson = defineType({
           { title: "Content", value: "content" },
           { title: "Challenge", value: "challenge" },
           { title: "Quiz", value: "quiz" },
+          { title: "Video", value: "video" },
         ],
       },
       initialValue: "content",
+    }),
+    defineField({
+      name: "videoUrl",
+      title: "Video URL",
+      description: "YouTube video URL (e.g. https://www.youtube.com/watch?v=...)",
+      type: "url",
+      hidden: ({ parent }) => parent?.type !== "video",
     }),
     defineField({
       name: "content",

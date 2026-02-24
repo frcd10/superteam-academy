@@ -2,6 +2,34 @@ import type { CourseService } from "../course-service";
 import type { Course, SearchParams } from "@/types";
 import { sanityClient } from "@/lib/sanity/client";
 
+// Lean fields for catalog listing — no modules/lessons/challenges/quizzes
+const COURSE_LIST_FIELDS = `
+  _id,
+  "id": _id,
+  courseId,
+  title,
+  description,
+  "slug": slug.current,
+  creator,
+  difficulty,
+  lessonCount,
+  xpPerLesson,
+  trackId,
+  trackLevel,
+  prerequisite,
+  isActive,
+  totalCompletions,
+  creatorRewardXp,
+  "thumbnailUrl": thumbnail.asset->url,
+  duration,
+  whatYouLearn,
+  "instructor": instructor{
+    name,
+    "avatar": avatar.asset->url,
+    bio
+  }
+`;
+
 const COURSE_FIELDS = `
   _id,
   "id": _id,
@@ -41,6 +69,7 @@ const COURSE_FIELDS = `
       order,
       type,
       "content": coalesce(htmlContent, null),
+      videoUrl,
       xp,
       duration,
       "challenge": challenge{
@@ -98,7 +127,7 @@ export const sanityCourseService: CourseService = {
   async getCourses(params) {
     const filter = buildFilters(params);
     const offset = params?.page ? (Number(params.page) - 1) * 12 : 0;
-    const query = `*[${filter}] | order(trackId asc, trackLevel asc) [${offset}...${offset + 12}] { ${COURSE_FIELDS} }`;
+    const query = `*[${filter}] | order(trackId asc, trackLevel asc) [${offset}...${offset + 12}] { ${COURSE_LIST_FIELDS} }`;
     return sanityClient.fetch<Course[]>(query);
   },
 
@@ -113,17 +142,17 @@ export const sanityCourseService: CourseService = {
   },
 
   async getFeaturedCourses() {
-    const query = `*[_type == "course" && isActive == true && (status == "approved" || !defined(status))] | order(totalCompletions desc) [0...6] { ${COURSE_FIELDS} }`;
+    const query = `*[_type == "course" && isActive == true && (status == "approved" || !defined(status))] | order(totalCompletions desc) [0...6] { ${COURSE_LIST_FIELDS} }`;
     return sanityClient.fetch<Course[]>(query);
   },
 
   async getCoursesByTrack(trackId) {
-    const query = `*[_type == "course" && isActive == true && (status == "approved" || !defined(status)) && trackId == $trackId] | order(trackLevel asc) { ${COURSE_FIELDS} }`;
+    const query = `*[_type == "course" && isActive == true && (status == "approved" || !defined(status)) && trackId == $trackId] | order(trackLevel asc) { ${COURSE_LIST_FIELDS} }`;
     return sanityClient.fetch<Course[]>(query, { trackId });
   },
 
   async searchCourses(searchQuery) {
-    const query = `*[_type == "course" && isActive == true && (status == "approved" || !defined(status)) && (title match "*${searchQuery}*" || description match "*${searchQuery}*")] | order(totalCompletions desc) [0...20] { ${COURSE_FIELDS} }`;
+    const query = `*[_type == "course" && isActive == true && (status == "approved" || !defined(status)) && (title match "*${searchQuery}*" || description match "*${searchQuery}*")] | order(totalCompletions desc) [0...20] { ${COURSE_LIST_FIELDS} }`;
     return sanityClient.fetch<Course[]>(query);
   },
 

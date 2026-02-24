@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
       description?: string;
       type?: string;
       content?: string;
+      videoUrl?: string;
       xp?: number;
       duration?: string;
       quiz?: {
@@ -99,6 +100,7 @@ export async function POST(req: NextRequest) {
           description: les.description ?? "",
           type: les.type ?? "content",
           htmlContent: les.content ?? "",
+          videoUrl: les.videoUrl ?? "",
           xp: lessonXp,
           duration: les.duration ?? "",
         };

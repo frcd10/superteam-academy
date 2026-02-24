@@ -1,5 +1,8 @@
 import { test, expect } from "@playwright/test";
 
+// Auth provider has a 5s safety timeout; CI machines are slow.
+const AUTH_TIMEOUT = 15_000;
+
 test.describe("Homepage", () => {
   test("renders title and navigation", async ({ page }) => {
     await page.goto("/");
@@ -9,8 +12,12 @@ test.describe("Homepage", () => {
 
   test("has explore courses link", async ({ page }) => {
     await page.goto("/");
-    const coursesLink = page.locator('a[href="/courses"]').first();
-    await expect(coursesLink).toBeVisible();
+    // Use a visible courses link (navbar link is hidden on mobile behind hamburger)
+    const coursesLink = page
+      .locator('a[href="/courses"]')
+      .and(page.locator(":visible"))
+      .first();
+    await expect(coursesLink).toBeVisible({ timeout: 10_000 });
   });
 });
 
@@ -24,14 +31,19 @@ test.describe("Courses page", () => {
 test.describe("Auth flow", () => {
   test("shows sign-in dialog when accessing protected route", async ({ page }) => {
     await page.goto("/dashboard");
-    await expect(page.getByText(/sign in/i)).toBeVisible();
+    // ProtectedRoute resolves auth state after mount + Supabase call (up to 5s safety timeout)
+    await expect(
+      page.getByRole("heading", { name: /sign in/i }),
+    ).toBeVisible({ timeout: AUTH_TIMEOUT });
   });
 });
 
 test.describe("Settings page", () => {
   test("redirects unauthenticated users", async ({ page }) => {
     await page.goto("/settings");
-    await expect(page.getByText(/sign in/i)).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: /sign in/i }),
+    ).toBeVisible({ timeout: AUTH_TIMEOUT });
   });
 });
 
@@ -59,6 +71,9 @@ test.describe("PWA", () => {
 test.describe("Offline page", () => {
   test("renders offline fallback", async ({ page }) => {
     await page.goto("/offline");
-    await expect(page.getByText(/offline/i)).toBeVisible();
+    // Page shows "You're online!" when connected or "You're offline" when not
+    await expect(
+      page.getByRole("heading", { name: /you.re (offline|online)/i }),
+    ).toBeVisible({ timeout: 10_000 });
   });
 });

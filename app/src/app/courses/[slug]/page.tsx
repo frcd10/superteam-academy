@@ -19,6 +19,7 @@ import { VersionedTransaction } from "@solana/web3.js";
 import { trackLabels, difficultyLabels, courseThumbnails } from "@/lib/constants";
 import { toast } from "sonner";
 import { trackEvent } from "@/components/providers/analytics-provider";
+import { useOfflineCourse, useOnlineStatus } from "@/hooks/use-offline";
 import {
   BookOpen,
   Clock,
@@ -33,6 +34,9 @@ import {
   Award,
   ExternalLink,
   Loader2,
+  Download,
+  WifiOff,
+  Trash2,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -53,6 +57,8 @@ export default function CourseDetailPage({
     new Set(),
   );
   const [finalizing, setFinalizing] = useState(false);
+  const { isSaved: isOfflineSaved, saving: savingOffline, saveCourse: saveOffline, removeCourse: removeOffline } = useOfflineCourse(course);
+  const isOnline = useOnlineStatus();
 
   const handleFinalize = useCallback(async () => {
     if (!course || !user || !walletKey || !signTransaction || !progress?.isCompleted) return;
@@ -468,47 +474,89 @@ export default function CourseDetailPage({
               )}
 
               {enrolled ? (
-                progress?.isCompleted ? (
-                  progress.isFinalized ? (
-                    <div className="space-y-2">
-                      <Button className="w-full h-11" disabled>
-                        <CheckCircle2 className="mr-2 h-4 w-4" />
-                        {t("completed")}
+                <>
+                  {progress?.isCompleted ? (
+                    progress.isFinalized ? (
+                      <div className="space-y-2">
+                        <Button className="w-full h-11" disabled>
+                          <CheckCircle2 className="mr-2 h-4 w-4" />
+                          {t("completed")}
+                        </Button>
+                        <p className="text-xs text-center text-muted-foreground">
+                          Credential NFT issued to your wallet
+                        </p>
+                      </div>
+                    ) : (
+                      <Button
+                        className="w-full h-11 bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90"
+                        onClick={handleFinalize}
+                        disabled={finalizing || !walletKey}
+                      >
+                        {finalizing ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Minting Credential...
+                          </>
+                        ) : (
+                          <>
+                            <Award className="mr-2 h-4 w-4" />
+                            Claim Certificate NFT
+                          </>
+                        )}
                       </Button>
-                      <p className="text-xs text-center text-muted-foreground">
-                        Credential NFT issued to your wallet
-                      </p>
+                    )
+                  ) : (
+                    <Button asChild className="w-full h-11">
+                      <Link
+                        href={`/courses/${slug}/lessons/${
+                          progress?.completedLessons.length ?? 0
+                        }`}
+                      >
+                        {t("continue")}
+                      </Link>
+                    </Button>
+                  )}
+
+                  {/* Save for Offline (enrolled only) */}
+                  {!isOnline && (
+                    <div className="flex items-center gap-2 text-xs text-amber-500 bg-amber-500/10 rounded-lg px-3 py-2">
+                      <WifiOff className="h-3.5 w-3.5 shrink-0" />
+                      <span>You&apos;re offline — reading cached content</span>
                     </div>
+                  )}
+                  {isOfflineSaved ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full gap-2 text-muted-foreground"
+                      onClick={async () => {
+                        await removeOffline();
+                        toast.success("Removed from offline");
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Remove Offline Copy
+                    </Button>
                   ) : (
                     <Button
-                      className="w-full h-11 bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90"
-                      onClick={handleFinalize}
-                      disabled={finalizing || !walletKey}
+                      variant="outline"
+                      size="sm"
+                      className="w-full gap-2"
+                      onClick={async () => {
+                        await saveOffline();
+                        toast.success("Course saved for offline reading!");
+                      }}
+                      disabled={savingOffline || !isOnline}
                     >
-                      {finalizing ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Minting Credential...
-                        </>
+                      {savingOffline ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
-                        <>
-                          <Award className="mr-2 h-4 w-4" />
-                          Claim Certificate NFT
-                        </>
+                        <Download className="h-4 w-4" />
                       )}
+                      {savingOffline ? "Saving..." : "Save for Offline"}
                     </Button>
-                  )
-                ) : (
-                  <Button asChild className="w-full h-11">
-                    <Link
-                      href={`/courses/${slug}/lessons/${
-                        progress?.completedLessons.length ?? 0
-                      }`}
-                    >
-                      {t("continue")}
-                    </Link>
-                  </Button>
-                )
+                  )}
+                </>
               ) : (
                 <Button
                   className="w-full h-11"

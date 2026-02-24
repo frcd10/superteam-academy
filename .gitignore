@@ -63,6 +63,9 @@ onchain-academy/target/verifiable/
 # Verification / audit notes
 verify_items.txt
 
+# PR draft (local only)
+PR.md
+
 # Misc
 *.log
 *.tmp
