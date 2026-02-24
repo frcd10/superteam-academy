@@ -109,7 +109,10 @@ const course = {
         htmlContent: lesson.content ?? null,
       };
       if (lesson.quiz) {
-        doc.quiz = lesson.quiz;
+        doc.quiz = {
+          ...lesson.quiz,
+          questions: lesson.quiz.questions.map((q) => ({ _key: k(), ...q })),
+        };
       }
       if (lesson.challenge) {
         doc.challenge = {

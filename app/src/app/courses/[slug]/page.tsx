@@ -512,7 +512,9 @@ export default function CourseDetailPage({
                           progress?.completedLessons.length ?? 0
                         }`}
                       >
-                        {t("continue")}
+                        {(progress?.completedLessons.length ?? 0) > 0
+                          ? t("continue")
+                          : t("start")}
                       </Link>
                     </Button>
                   )}

@@ -171,14 +171,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (fetchErr) {
           console.error("[Auth] Server ensure-profile network error:", fetchErr);
         }
+        // Retry fetch after server-side profile creation (with short delay for DB propagation)
+        await new Promise((r) => setTimeout(r, 300));
         const retryProfile = await fetchProfile(authUser.id);
         if (retryProfile) return retryProfile;
+
+        // Final retry via browser client (handles case where /api/profile is unavailable)
+        const { data: fallbackData } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", authUser.id)
+          .single();
+        if (fallbackData) {
+          const fp = mapRowToProfile(fallbackData);
+          setProfile(fp);
+          setUser(fp);
+          return fp;
+        }
+
+        console.error("[Auth] All profile creation attempts failed for user:", authUser.id);
         return null;
       }
 
       return fetchProfile(authUser.id);
     },
-    [supabase, fetchProfile]
+    [supabase, fetchProfile, mapRowToProfile, setUser]
   );
 
   // Listen for auth changes
@@ -187,6 +204,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const safetyTimeout = setTimeout(() => {
       setIsLoading(false);
     }, 5000);
+
+    // Track whether profile was loaded from onAuthStateChange to avoid
+    // duplicate work from getSession running concurrently
+    let profileLoaded = false;
 
     const {
       data: { subscription },
@@ -197,8 +218,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (newSession?.user) {
         try {
           await ensureProfile(newSession.user);
-        } catch {
-          // Profile fetch failed — continue without profile
+          profileLoaded = true;
+        } catch (err) {
+          console.error("[Auth] ensureProfile failed in onAuthStateChange:", err);
         }
       } else {
         setProfile(null);
@@ -207,15 +229,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
     });
 
-    // Initial session check
+    // Fallback initial session check — only load profile if onAuthStateChange
+    // hasn't already handled it (avoids double-fetching race condition)
     supabase.auth.getSession().then(async ({ data: { session: s } }) => {
+      if (profileLoaded) {
+        // onAuthStateChange already handled this session
+        return;
+      }
       setSession(s);
       setAuthUser(s?.user ?? null);
       if (s?.user) {
         try {
           await ensureProfile(s.user);
-        } catch {
-          // Profile fetch failed — continue without profile
+        } catch (err) {
+          console.error("[Auth] ensureProfile failed in getSession:", err);
         }
       }
       setIsLoading(false);

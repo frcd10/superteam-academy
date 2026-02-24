@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { PlatformLayout } from "@/components/layout";
@@ -41,14 +41,15 @@ export default function DashboardPage() {
   const { balance, loading: xpLoading } = useXP();
   const { streak } = useStreak();
   const { activities } = useActivities(10);
-  // Show onboarding only to users who haven't completed it
-  const [showOnboarding, setShowOnboarding] = useState(false);
 
-  useEffect(() => {
-    if (profile && !profile.onboardingCompleted) {
-      setShowOnboarding(true);
-    }
-  }, [profile]);
+  // Derive onboarding visibility directly from profile state (no useEffect race)
+  const needsOnboarding = !!profile && !profile.onboardingCompleted;
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
+  const showOnboarding = needsOnboarding && !onboardingDismissed;
+
+  const handleOnboardingChange = useCallback((open: boolean) => {
+    if (!open) setOnboardingDismissed(true);
+  }, []);
 
   const inProgress = progressList.filter((p) => !p.isCompleted);
   const completed = progressList.filter((p) => p.isCompleted);
@@ -56,7 +57,7 @@ export default function DashboardPage() {
   return (
     <ProtectedRoute>
       <PlatformLayout>
-        <OnboardingModal open={showOnboarding} onOpenChange={setShowOnboarding} />
+        <OnboardingModal open={showOnboarding} onOpenChange={handleOnboardingChange} />
         <LinkWalletPrompt />
         <div className="container mx-auto px-4 py-8 lg:py-12">
           {/* Welcome */}

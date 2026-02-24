@@ -26,8 +26,9 @@ export function LessonQuiz({ quiz, onPass }: QuizProps) {
 
   const handleSubmit = useCallback(() => {
     let correct = 0;
-    for (const q of quiz.questions) {
-      if (answers[q.id] === q.correctIndex) correct++;
+    for (let i = 0; i < quiz.questions.length; i++) {
+      const q = quiz.questions[i];
+      if (answers[q.id ?? `__q${i}`] === q.correctIndex) correct++;
     }
     const pct = Math.round((correct / quiz.questions.length) * 100);
     setScore(pct);
@@ -44,7 +45,7 @@ export function LessonQuiz({ quiz, onPass }: QuizProps) {
     setScore(0);
   }, []);
 
-  const allAnswered = quiz.questions.every((q) => answers[q.id] !== undefined);
+  const allAnswered = quiz.questions.every((q, i) => answers[q.id ?? `__q${i}`] !== undefined);
   const passed = submitted && score >= quiz.passingScore;
 
   return (
@@ -58,13 +59,14 @@ export function LessonQuiz({ quiz, onPass }: QuizProps) {
       </div>
 
       {quiz.questions.map((q, qi) => {
-        const selected = answers[q.id];
+        const qid = q.id ?? `__q${qi}`;
+        const selected = answers[qid];
         const isCorrect = submitted && selected === q.correctIndex;
         const isWrong = submitted && selected !== undefined && selected !== q.correctIndex;
 
         return (
           <div
-            key={q.id}
+            key={qid}
             className={cn(
               "rounded-lg border p-5 transition-colors",
               isCorrect && "border-emerald-500/50 bg-emerald-500/5",
@@ -84,7 +86,7 @@ export function LessonQuiz({ quiz, onPass }: QuizProps) {
                 return (
                   <button
                     key={oi}
-                    onClick={() => handleSelect(q.id, oi)}
+                    onClick={() => handleSelect(qid, oi)}
                     disabled={submitted}
                     className={cn(
                       "w-full text-left rounded-md border px-4 py-3 text-sm transition-all",
@@ -138,7 +140,7 @@ export function LessonQuiz({ quiz, onPass }: QuizProps) {
                   {passed ? "Passed!" : "Not quite..."}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Score: {score}% ({quiz.questions.filter((q) => answers[q.id] === q.correctIndex).length}/
+                  Score: {score}% ({quiz.questions.filter((q, i) => answers[q.id ?? `__q${i}`] === q.correctIndex).length}/
                   {quiz.questions.length} correct)
                 </p>
               </div>
