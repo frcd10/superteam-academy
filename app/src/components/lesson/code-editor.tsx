@@ -38,7 +38,16 @@ function stripComments(source: string): string {
     .replace(/\/\*[\s\S]*?\*\//g, ""); // multi-line comments
 }
 
-/** Get Monaco diagnostics (syntax/type errors) for the current editor model. */
+// TS error codes to ignore in challenge context:
+// 2307 = Cannot find module (imports won't resolve without node_modules)
+// 2304 = Cannot find name (external types not available)
+// 2468 = Cannot find global value (no DOM/Node globals)
+// 1378 = Top-level await requires module option
+// 1375 = Top-level await requires target
+// 7016 = Could not find declaration file
+const IGNORED_TS_ERROR_CODES = new Set([2307, 2304, 2468, 1378, 1375, 7016]);
+
+/** Get Monaco diagnostics (syntax errors only) for the current editor model. */
 function getEditorDiagnostics(
   monaco: Monaco,
   modelUri: Parameters<typeof monaco.editor.getModelMarkers>[0] extends { resource?: infer R } ? R : never,
@@ -47,7 +56,10 @@ function getEditorDiagnostics(
     // Wait briefly for Monaco workers to process changes
     setTimeout(() => {
       const markers = monaco.editor.getModelMarkers({ resource: modelUri })
-        .filter((m: { severity: number }) => m.severity >= monaco.MarkerSeverity.Error);
+        .filter((m: { severity: number; code?: string | number }) =>
+          m.severity >= monaco.MarkerSeverity.Error &&
+          !IGNORED_TS_ERROR_CODES.has(Number(m.code)),
+        );
       resolve(
         markers.map((m: { message: string; startLineNumber: number }) => ({
           message: m.message,
@@ -79,6 +91,28 @@ export function CodeEditor({ challenge, courseSlug, lessonId, onSubmit }: CodeEd
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
+
+    // Configure TS compiler to be lenient for challenge code snippets
+    if (challenge.language === "typescript") {
+      monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+        target: monaco.languages.typescript.ScriptTarget.ESNext,
+        module: monaco.languages.typescript.ModuleKind.ESNext,
+        moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+        allowJs: true,
+        noResolve: true,       // Don't resolve imports (no node_modules)
+        allowImportingTsExtensions: true,
+        strict: false,
+        noEmit: true,
+        esModuleInterop: true,
+        jsx: monaco.languages.typescript.JsxEmit.ReactJSX,
+      });
+      // Suppress semantic diagnostics (module resolution, missing types)
+      // while keeping syntax diagnostics
+      monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+        noSemanticValidation: true,
+        noSyntaxValidation: false,
+      });
+    }
   };
 
   const runTests = useCallback(async () => {
