@@ -42,11 +42,43 @@ export default function LessonsPage() {
         learned.
       </p>
       <ul>
-        <li>Read the challenge description</li>
+        <li>Read the challenge description and objectives</li>
         <li>Write your solution in the code editor</li>
+        <li>Click <strong>Run</strong> to validate your code against test cases</li>
         <li>Use the provided hints if you get stuck</li>
-        <li>Submit your code to complete the challenge</li>
+        <li>View the reference solution if needed</li>
       </ul>
+
+      <h4>How Code Validation Works</h4>
+      <p>
+        When you click <strong>Run</strong>, your code goes through two checks:
+      </p>
+      <ol>
+        <li>
+          <strong>Compile check</strong> (TypeScript only) — the editor checks
+          for syntax and type errors before sending your code for validation.
+          If there are compile errors, all tests fail immediately and the errors
+          are shown.
+        </li>
+        <li>
+          <strong>Server-side validation</strong> — your code is sent to the
+          server where it&apos;s checked against test cases defined by the course
+          creator. The server strips comments before checking, so the patterns
+          must appear in actual code, not in comments.
+        </li>
+      </ol>
+      <p>
+        Some test cases are <strong>hidden</strong> — you can see they exist but
+        not what they check. This encourages writing complete solutions rather
+        than targeting specific patterns.
+      </p>
+
+      <blockquote>
+        <p>
+          <strong>Offline:</strong> If you&apos;re offline, code validation falls
+          back to client-side checking so you can keep working.
+        </p>
+      </blockquote>
 
       <h2>Lesson Navigation</h2>
       <p>

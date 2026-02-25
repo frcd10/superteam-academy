@@ -24,7 +24,7 @@ export default function ArchitecturePage() {
           <tr><td><strong>Animations</strong></td><td>Framer Motion</td><td>Page transitions, micro-interactions</td></tr>
           <tr><td><strong>State</strong></td><td>Zustand</td><td>Client-side state with localStorage persistence</td></tr>
           <tr><td><strong>Charts</strong></td><td>Recharts</td><td>Skill radar, progress visualization</td></tr>
-          <tr><td><strong>Code Editor</strong></td><td>Monaco Editor</td><td>In-browser coding challenges</td></tr>
+          <tr><td><strong>Code Editor</strong></td><td>Monaco Editor</td><td>In-browser coding challenges with server-side validation</td></tr>
           <tr><td><strong>Database</strong></td><td>Supabase (PostgreSQL)</td><td>User data, progress, streaks, achievements</td></tr>
           <tr><td><strong>Auth</strong></td><td>Supabase Auth</td><td>OAuth (Google/GitHub) + wallet-based auth</td></tr>
           <tr><td><strong>CMS</strong></td><td>Sanity</td><td>Course content (lessons, modules, quizzes)</td></tr>
@@ -89,6 +89,25 @@ export default function ArchitecturePage() {
       <pre><code>{`Sanity Studio → Sanity Content Lake → GROQ Query → Next.js SSR → Rendered Page
     or
 Push Scripts → Sanity Mutation API → Content Lake`}</code></pre>
+
+      <h3>Challenge Validation Flow</h3>
+      <pre><code>{`User writes code → Monaco Editor (client)
+                        ↓
+            [TS only] Compile check via Monaco diagnostics
+                        ↓
+            POST /api/challenges/run { courseSlug, lessonId, code }
+                        ↓
+            API fetches test cases from Sanity (server-side)
+                        ↓
+            Strip comments → pattern match against expectedOutput
+                        ↓
+            Return { passed, results[] } — hidden test patterns never exposed`}</code></pre>
+      <p>
+        Challenge validation runs server-side so test case patterns cannot be
+        inspected or bypassed via browser devtools. Hidden test cases are
+        fully redacted in the API response. If the server is unreachable
+        (offline mode), the editor falls back to client-side validation.
+      </p>
 
       <h2>Service Layer Pattern</h2>
       <p>

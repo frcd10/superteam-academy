@@ -46,15 +46,16 @@ src/
 │   ├── settings/page.tsx       # User settings (profile, locale, theme)
 │   ├── certificates/[id]/page.tsx # Credential detail + on-chain verification
 │   └── api/
-│       ├── auth/callback/route.ts # Supabase OAuth callback
-│       └── health/route.ts     # Health check endpoint
+│       ├── auth/callback/route.ts  # Supabase OAuth callback
+│       ├── challenges/run/route.ts # Server-side code challenge validation
+│       └── health/route.ts        # Health check endpoint
 │
 ├── components/
 │   ├── auth/                   # AuthDialog, ProtectedRoute
 │   ├── gamification/           # StreakCalendar, AchievementCard, LevelRing,
 │   │                           # XPNotification, GamificationStats, SkillRadar
 │   ├── layout/                 # Navbar, PlatformLayout, Footer
-│   ├── lesson/                 # CodeEditor (Monaco)
+│   ├── lesson/                 # CodeEditor (Monaco) — server-validated challenges
 │   ├── providers/              # AuthProvider, SolanaProvider, ThemeProvider,
 │   │                           # AnalyticsProvider
 │   ├── shared/                 # XPDisplay, StreakBadge, DifficultyBadge,

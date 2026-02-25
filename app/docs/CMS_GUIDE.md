@@ -43,7 +43,7 @@ Schemas are defined in `src/lib/sanity/schemas/`:
 | **course** | title, slug, description, trackId, difficulty, modules, xpReward, prerequisite, thumbnail, instructor |
 | **module** | id, title, description, lessons |
 | **lesson** | id, title, type, xp, duration, content (portable text), challenge |
-| **challenge** | starterCode, solution, testCases, language |
+| **challenge** | starterCode, solution, testCases, language, hints |
 
 ### Creating a Course
 
@@ -52,7 +52,9 @@ Schemas are defined in `src/lib/sanity/schemas/`:
 3. Fill required fields: title, slug, description, trackId (1-5), difficulty
 4. Add modules with lessons
 5. For challenge lessons, add starter code, solution, and test cases
-6. Publish the document
+6. Test cases use `expectedOutput` as a required keyword/pattern the learner's code must contain (validated server-side via `POST /api/challenges/run`)
+7. Mark sensitive test cases as `hidden: true` — their patterns are never exposed to the browser
+8. Publish the document
 
 ### GROQ Queries
 
@@ -140,6 +142,9 @@ Edit `mock-course-service.ts` and add entries to the `MOCK_COURSES` array:
 - Use progressive disclosure: start simple, build complexity
 - Every content lesson should be 5-15 minutes
 - Every challenge should have clear test cases with helpful messages
+- `expectedOutput` is the keyword/pattern the learner's code must include (e.g., `checked_add`, `findProgramAddressSync`)
+- Use `hidden: true` for test cases whose patterns should not be visible to learners
+- Comments in user code are stripped before validation — patterns inside comments won't pass
 - Include code examples with syntax highlighting (`<pre><code>`)
 - Use the `whatYouLearn` field to set expectations
 - Set realistic `duration` estimates
