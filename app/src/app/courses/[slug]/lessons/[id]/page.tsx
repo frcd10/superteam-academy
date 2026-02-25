@@ -401,12 +401,30 @@ export default function LessonPage({
                       {!completing && <ArrowRight className="h-3.5 w-3.5" />}
                     </Button>
                   )
-                ) : (
+                ) : isComplete ? (
                   <Button asChild size="sm" className="gap-1.5">
                     <Link href={`/courses/${slug}`}>
-                      Back to Course
+                      {t("backToCourse")}
                       <ArrowRight className="h-3.5 w-3.5" />
                     </Link>
+                  </Button>
+                ) : isQuizLesson ? (
+                  <Button size="sm" className="gap-1.5" disabled>
+                    {t("backToCourse")}
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={handleNext}
+                    disabled={completing}
+                  >
+                    {completing ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : null}
+                    {t("backToCourse")}
+                    {!completing && <ArrowRight className="h-3.5 w-3.5" />}
                   </Button>
                 )}
               </div>

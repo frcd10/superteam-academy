@@ -124,6 +124,7 @@
   "lesson": {
     "previous": "Anterior",
     "next": "Siguiente",
+    "backToCourse": "Volver al Curso",
     "complete": "Marcar como Completa",
     "completed": "Completada",
     "challenge": {
